@@ -4,7 +4,7 @@ author: "Ani Ruhil"
 format: 
   html:
     theme: united
-    fontsize: 0.9em
+    fontsize: 1.0em
 self-contained: true
 editor_options: 
   chunk_output_type: console
