@@ -1,0 +1,7239 @@
+---
+title: "A Profile of Disability in Ohio"
+author: "Ani Ruhil"
+format: 
+  html:
+    theme: united
+    fontsize: 0.9em
+self-contained: true
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  cache = FALSE, echo = FALSE, warning = FALSE, message = FALSE
+  )
+```
+
+[Measuring Disability in the Census](https://www2.census.gov/programs-surveys/acs/tech_docs/subject_definitions/2020_ACSSubjectDefinitions.pdf)
+
+Disability Status Under the conceptual framework of disability described by the Institute of Medicine (IOM) and the International Classification of Functioning, Disability, and Health (ICF), disability is defined as the product of interactions among individuals’ bodies; their physical, emotional, and mental health; and the physical and social environment in which they live, work, or play.  Disability exists where this interaction results in limitations of activities and restrictions to full participation at school, at work, at home, or in the community.  For example, disability may exist where a child has difficulty learning because the school cannot accommodate the child’s deafness. 
+
+Furthermore, disability is a dynamic concept that changes over time as one’s health improves or declines, as technology advances, and as social structures adapt. As such, disability is a continuum in which the degree of difficulty may also increase or decrease.  Because disability exists along a continuum, various cut-offs are used to allow for a simpler understanding of the concept, the most common of which is the dichotomous “With a disability”/“no disability” categorization. 
+
+Measuring this complex concept of disability with a short set of six questions is difficult.  Because of the multitude of possible functional limitations that may present as disabilities, and in the absence of information on external factors that influence disability, surveys like the ACS are limited to capturing difficulty with only selected activities.  Thus, people identified by the ACS as having a disability are those who report difficulty with specific functions, and may, in the absence of accommodation, have a disability.  While this definition is different from the one described by the IOM and ICF conceptual frameworks, it relates to the programmatic definitions used in most Federal and state legislation. 
+
+In an attempt to capture a variety of characteristics that encompass the definition of disability, the ACS identifies serious difficulty with four basic areas of functioning – hearing, vision, cognition, and ambulation.  These functional limitations are supplemented by questions about difficulties with selected activities from the Katz Activities of Daily Living (ADL) and Lawton Instrumental Activities of Daily Living (IADL) scales, namely difficulty bathing and dressing, and difficulty performing errands such as shopping.  Overall, the ACS 
+
+```{r }
+library(tidyverse)
+library(tidycensus)
+library(scales)
+library(forcats)
+
+c(
+  "Adams", "Ashtabula", "Athens", "Belmont", "Brown", "Carroll",
+  "Clermont", "Columbiana", "Coshocton", "Gallia", "Guernsey", 
+  "Harrison", "Highland", "Hocking", "Holmes", "Jackson", 
+  "Jefferson", "Lawrence", "Mahoning", "Meigs", "Monroe", 
+  "Morgan", "Muskingum", "Noble", "Perry", "Pike", "Ross", 
+  "Scioto", "Trumbull", "Tuscarawas", "Vinton", "Washington"
+  ) -> appalachian.ohio 
+
+load_variables(
+  2020, 
+  "acs5"
+  ) -> myvars
+
+```
+
+# Disability Characteristics
+
+Ohio ranks 16th in terms of the percent of the total population with a disability (14%). The 2016-2020 data show 14.2% of female Ohioans with a disability versus a slightly smaller 13.7% of male Ohioans. In terms of age-groups, 47.7% of Ohioans ages 75 or older report a disability, followed by 24.5% of Ohioans 65-74 years of age, 14.3% of Ohioans 35-64 years of age, 7.7% of Ohioans 18-34 years of age, 6.6% of Ohioans 5-17 years of age, and 0.7% of Ohioans under 5 years of age. 
+
+::: {.panel-tabset}
+
+## Overall
+
+```{r }
+get_acs(
+  geography = "state",
+  table = "B18101",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18101_state
+
+b18101_state %>%
+  mutate(
+    sex = case_when(
+      grepl("Male", label) ~ "Male",
+      grepl("Female", label) ~ "Female"
+      ),
+    disability = case_when(
+      grepl("With a disability", label) ~ "With a Disability",
+      grepl("No disability", label) ~ "No Disability"
+      ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|!!Male:|!!Male:!!|!!Female:|!!Female:!!|:!!No disability|:!!With a disability|!!|:"
+      )
+    ) %>%
+  filter(
+    !is.na(sex),
+    !is.na(disability)
+    ) -> tab01_df
+
+tab01_df %>%
+  group_by(NAME) %>%
+  mutate(
+    total_popn = sum(estimate)
+    ) %>%
+  group_by(NAME, disability) %>%
+  mutate(
+    total = sum(estimate)
+    ) %>%
+  ungroup() %>%
+  select(NAME, disability, total_popn, total) %>%
+  distinct() %>%
+  mutate(
+    prop = (total / total_popn)
+  ) %>%
+  group_by(
+    NAME, total_popn
+  ) %>%
+  select(NAME, total_popn, disability, prop) %>%
+  pivot_wider(
+    names_from = disability,
+    values_from = prop
+  ) -> tab01
+
+tab01 %>% 
+  select(1:3) %>%
+  arrange(- `With a Disability`) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population with a Disability",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "Total Population", "% with Disability"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage('With a Disability', 1) %>%
+  DT::formatCurrency(
+    'total_popn', 
+    currency = "", interval = 3, 
+    mark = ",", digits = 0
+    )
+```
+
+## By Gender
+
+```{r }
+tab01_df %>%
+  group_by(NAME) %>%
+  mutate(
+    state_total = sum(estimate)
+    ) %>%
+  group_by(NAME, sex) %>%
+  mutate(
+    total_state_sex = sum(estimate)
+    ) %>%
+  group_by(NAME, sex, disability) %>%
+  mutate(
+    total_state_sex_disabled = sum(estimate)
+    ) %>%
+  ungroup() %>%
+  select(
+    NAME, sex, disability, state_total, total_state_sex, total_state_sex_disabled
+    ) %>%
+  distinct() %>%
+  ungroup() %>%
+  mutate(
+    prop = (total_state_sex_disabled / total_state_sex)
+  ) %>%
+  filter(disability == "With a Disability") %>%
+  group_by(
+    NAME
+  ) %>%
+  select(NAME, sex, prop) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = prop
+  ) -> tab02
+
+tab02 %>% 
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population with a Disability, by Sex",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "Male %", "Female %"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c("Male", "Female"), 1) 
+
+```
+
+## By Age-group
+
+```{r }
+
+tab01_df %>%
+  group_by(NAME) %>%
+  mutate(
+    state_total = sum(estimate)
+    ) %>%
+  group_by(NAME, age) %>%
+  mutate(
+    total_state_age = sum(estimate)
+    ) %>%
+  group_by(NAME, age, disability) %>%
+  mutate(
+    total_state_age_disabled = sum(estimate)
+    ) %>%
+  ungroup() %>%
+  select(
+    NAME, age, disability, state_total, total_state_age, total_state_age_disabled
+    ) %>%
+  distinct() %>%
+  ungroup() %>%
+  mutate(
+    prop = (total_state_age_disabled / total_state_age)
+  ) %>%
+  filter(disability == "With a Disability") %>%
+  group_by(
+    NAME
+  ) %>%
+  select(NAME, age, prop) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) -> tab03
+
+tab03 %>% 
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population with a Disability, by Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "% Under 5", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Under 5 years', '5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+## By Gender and Age-group
+
+```{r }
+
+tab01_df %>%
+  group_by(NAME) %>%
+  mutate(
+    state_total = sum(estimate)
+    ) %>%
+  group_by(NAME, sex, age) %>%
+  mutate(
+    total_state_sex_age = sum(estimate)
+    ) %>%
+  group_by(NAME, sex, age, disability) %>%
+  mutate(
+    total_state_sex_age_disabled = sum(estimate)
+    ) %>%
+  ungroup() %>%
+  select(
+    NAME, sex, age, disability, state_total, total_state_sex_age, total_state_sex_age_disabled
+    ) %>%
+  distinct() %>%
+  ungroup() %>%
+  mutate(
+    prop = (total_state_sex_age_disabled / total_state_sex_age)
+  ) %>%
+  group_by(
+    NAME, sex
+  ) %>%
+  filter(disability == "With a Disability") %>%
+  ungroup() %>%
+  select(NAME, sex, age, prop) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) -> tab03
+
+tab03 %>% 
+DT::datatable(
+    ., 
+    caption = "Percent of State Population with a Disability, by Gender and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "Gender", "% Under 5", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Under 5 years', '5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+:::
+
+## What about Ohio's counties? 
+Scioto county leads with an estimated 23.2% of its population living with a disability, with Delaware bringing up the rear with 8%. A simple map of disability rates per county shows Appalachia faring worse than the rest of the state, as expected. 
+
+
+::: {.panel-tabset}
+
+### Overall
+
+```{r, include=FALSE}
+get_acs(
+  geography = "county",
+  state = "OH",
+  table = "B18101",
+  year = 2020,
+  geometry = TRUE
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18101_county
+```
+
+
+```{r }
+b18101_county %>%
+  mutate(
+    sex = case_when(
+      grepl("Male", label) ~ "Male",
+      grepl("Female", label) ~ "Female"
+      ),
+    disability = case_when(
+      grepl("With a disability", label) ~ "With a Disability",
+      grepl("No disability", label) ~ "No Disability"
+      ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|!!Male:|!!Male:!!|!!Female:|!!Female:!!|:!!No disability|:!!With a disability|!!|:"
+      )
+    ) %>%
+  filter(
+    !is.na(sex),
+    !is.na(disability)
+    ) %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio")
+    ) -> tab02_df
+
+tab02_df %>%
+  group_by(NAME) %>%
+  mutate(
+    total_popn = sum(estimate)
+    ) %>%
+  group_by(NAME, disability) %>%
+  mutate(
+    total = sum(estimate)
+    ) %>%
+  ungroup() -> tab02_df_b
+
+tab02_df_b %>%
+  select(NAME, disability, total_popn, total) %>%
+  distinct() %>%
+  mutate(
+    prop = (total / total_popn)
+  ) %>%
+  group_by(
+    NAME, total_popn
+  ) -> tab02_df_c 
+
+tab02_df_c %>%
+  select(NAME, total_popn, disability, prop) %>%
+  group_by(NAME, total_popn) %>%
+  pivot_wider(
+    names_from = "disability",
+    values_from = "prop"
+  ) -> tab04
+
+tab04 %>%
+  sf::st_drop_geometry() %>%
+  ungroup() %>%
+  select(1,3) %>%
+  arrange(- `With a Disability`) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of Ohio's County Population with a Disability",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "% with Disability"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage('With a Disability', 1) 
+
+```
+
+### A Map as an Example
+
+```{r, fig.align='center', fig.height=8, fig.width = 8, out.width='100%'}
+
+tab04 %>%
+  ggplot() +
+  geom_sf(
+    aes(
+      geometry = geometry,
+      fill = round(`With a Disability` * 100, digits = 0)
+      )
+    ) + 
+  geom_sf_text(
+    aes(
+      geometry = geometry,
+      label = stringr::str_remove_all(NAME, " County, Ohio")
+      ),
+    size = 2.85,
+    color = ifelse(tab04$`With a Disability` > 0.15, "white", "black")
+    ) + 
+  coord_sf(default_crs = sf::st_crs(4326)) +
+  ggthemes::theme_map() +
+  theme(legend.position = "bottom") +
+  scale_fill_viridis_c(option = "plasma", direction = -1) +
+  labs(
+    title = "Counties in Southeast Ohio Have Higher Percentages of their  Populations with a Disability",
+    caption = "Data Source: ACS 2016-2020, Table B1801",
+    fill = "% with a Disability"
+       )
+
+```
+
+### By Gender
+
+```{r }
+
+tab02_df %>%
+  sf::st_drop_geometry() %>%
+  group_by(NAME) %>%
+  mutate(
+    county_total = sum(estimate)
+    ) %>%
+  group_by(NAME, sex) %>%
+  mutate(
+    total_county_sex = sum(estimate)
+    ) %>%
+  group_by(NAME, sex, disability) %>%
+  mutate(
+    total_county_sex_disabled = sum(estimate)
+    ) %>%
+  ungroup() %>%
+  select(
+    NAME, sex, disability, county_total, total_county_sex, total_county_sex_disabled
+    ) %>%
+  distinct() %>%
+  ungroup() %>%
+  mutate(
+    prop = (total_county_sex_disabled / total_county_sex)
+  ) %>%
+  filter(disability == "With a Disability") %>%
+  select(NAME, sex, prop) %>%
+  ungroup() %>%
+  group_by(
+    NAME, sex
+  ) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = prop
+  ) -> tab02
+
+tab02 %>% 
+  arrange(NAME) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population with a Disability, by Sex",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "Male", "Female"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Male', 'Female'), 1) 
+
+```
+
+### By Age-group
+
+```{r }
+
+tab02_df %>%
+  sf::st_drop_geometry() %>%
+  group_by(NAME) %>%
+  mutate(
+    county_total = sum(estimate)
+    ) %>%
+  group_by(NAME, age) %>%
+  mutate(
+    total_county_age = sum(estimate)
+    ) %>%
+  group_by(NAME, age, disability) %>%
+  mutate(
+    total_county_age_disabled = sum(estimate)
+    ) %>%
+  ungroup() %>%
+  select(
+    NAME, age, disability, county_total, total_county_age, total_county_age_disabled
+    ) %>%
+  distinct() %>%
+  ungroup() %>%
+  mutate(
+    prop = (total_county_age_disabled / total_county_age)
+  ) %>%
+  filter(disability == "With a Disability") %>%
+  group_by(
+    NAME
+  ) %>%
+  select(NAME, age, prop) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) -> tab03
+
+tab03 %>% 
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population with a Disability, by Age",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "% Under 5", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Under 5 years', '5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+### By Gender and Age-group
+
+```{r }
+
+tab02_df %>%
+  sf::st_drop_geometry() %>%
+  group_by(NAME) %>%
+  mutate(
+    state_total = sum(estimate)
+    ) %>%
+  group_by(NAME, sex, age) %>%
+  mutate(
+    total_state_sex_age = sum(estimate)
+    ) %>%
+  group_by(NAME, sex, age, disability) %>%
+  mutate(
+    total_state_sex_age_disabled = sum(estimate)
+    ) %>%
+  ungroup() %>%
+  select(
+    NAME, sex, age, disability, state_total, total_state_sex_age, total_state_sex_age_disabled
+    ) %>%
+  distinct() %>%
+  ungroup() %>%
+  mutate(
+    prop = (total_state_sex_age_disabled / total_state_sex_age)
+  ) %>%
+  filter(disability == "With a Disability") %>%
+  ungroup() %>%
+  select(NAME, sex, age, prop) %>%
+  group_by(
+    NAME, sex
+  ) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) -> tab03
+
+tab03 %>% 
+  arrange(NAME) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population with a Disability, by Gender and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "Gender", "% Under 5", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Under 5 years', '5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+:::
+
+## By Appalachia vs Rest of Ohio
+
+::: {.panel-tabset}
+
+```{r}
+
+tab02_df %>%
+  sf::st_drop_geometry() -> tab03_df
+
+tab03_df %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio"),
+    appalachia = case_when(
+      NAME %in% appalachian.ohio ~ "Appalachia",
+      TRUE ~ "Rest of Ohio"
+      )
+    ) -> tab03_df
+
+tab03_df %>%
+  group_by(appalachia) %>%
+  mutate(
+    total = sum(estimate)
+    ) %>%
+  group_by(appalachia, sex) %>%
+  mutate(
+    total_sex = sum(estimate)
+    ) %>%
+  group_by(appalachia, sex, disability) %>%
+  mutate(
+    total_sex_disability = sum(estimate)
+    ) %>%
+  mutate(
+    prop = (total_sex_disability / total_sex)
+  ) %>%
+  filter(disability == "With a Disability") %>%
+  ungroup() %>%
+  select(appalachia, disability, sex, prop) %>%
+  distinct() -> taba
+```
+
+### Overall
+
+```{r}
+
+tab03_df %>%
+  group_by(appalachia) %>%
+  mutate(
+    total = sum(estimate)
+    ) %>%
+  group_by(appalachia, disability) %>%
+  mutate(
+    total_disability = sum(estimate)
+    ) %>%
+  mutate(
+    prop = (total_disability / total)
+  ) %>%
+  filter(disability == "With a Disability") %>%
+  ungroup() %>%
+  select(appalachia, disability, prop) %>%
+  distinct() -> tab0
+
+
+tab0 %>%
+  select(1, 3) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of Appalachian/Non-Appalachian Residents with a Disability",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "% with a Disability"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('prop'), 1)   
+  
+```
+
+
+### By Gender
+
+```{r}
+taba %>%
+  select(1, 3, 4) %>%
+  group_by(appalachia) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = prop
+  ) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of Appalachian/Non-Appalachian Residents with a Disability, by Gender",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "Male", "Female"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Male', 'Female'), 1) 
+
+tab03_df %>%
+  group_by(appalachia, age) %>%
+  mutate(
+    total_age = sum(estimate)
+    ) %>%
+  group_by(appalachia, age, disability) %>%
+  mutate(
+    total_age_disability = sum(estimate)
+    ) %>%
+  mutate(
+    prop = (total_age_disability / total_age)
+  ) %>%
+  filter(disability == "With a Disability") %>%
+  ungroup() %>%
+  select(appalachia, disability, age, prop) %>%
+  distinct() -> tabb
+```
+
+### By Age-group
+
+```{r}
+tabb %>%
+  select(1, 3, 4) %>%
+  group_by(appalachia) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of Appalachian/Non-Appalachian Residents with a Disability, by Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "% Under 5", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Under 5 years', '5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1)   
+  
+tab03_df %>%
+  group_by(appalachia, age) %>%
+  mutate(
+    total_age = sum(estimate)
+    ) %>%
+  group_by(appalachia, sex, age) %>%
+  mutate(
+    total_sex_age = sum(estimate)
+    ) %>%
+  group_by(appalachia, sex, age, disability) %>%
+  mutate(
+    total_sex_age_disabled = sum(estimate)
+    ) %>%
+  ungroup() %>%
+  select(
+    appalachia, sex, age, disability, total_sex_age, total_sex_age_disabled
+    ) %>%
+  distinct() %>%
+  ungroup() -> tab03_df_1
+
+tab03_df_1 %>%
+  group_by(appalachia, sex, age, disability) %>%
+  mutate(
+    prop = (total_sex_age_disabled / total_sex_age)
+  ) %>%
+  filter(disability == "With a Disability") %>%
+  ungroup() %>%
+  select(appalachia, sex, age, prop) %>%
+  group_by(
+    appalachia, sex
+  ) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) -> tab03_df_2
+```
+
+### By Gender and Age-group
+
+```{r}
+tab03_df_2 %>% 
+  DT::datatable(
+    ., 
+    caption = "Percent of Appalachian/Non-Appalachian Residents with a Disability, by Gender and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "Gender", "% Under 5", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Under 5 years', '5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+
+:::
+
+
+# Does the prevalence of disability vary by Race/Ethnicity?
+
+Indeed it does, with American Indian and Alaska Native Ohioans faring the worst (25.7% are estimated to have a disability), followed by Black or African-American Ohioans (15.3%). Asian Ohioans are the least likely to have a disability (5.9%). 
+
+```{r }
+
+get_acs(
+  geography = "state",
+  table = "B18101H",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18101_state_h
+
+b18101_state_h %>%
+  mutate(
+    disability = case_when(
+      grepl("With a disability", label) ~ "With a Disability",
+      grepl("No disability", label) ~ "No Disability"
+      ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|:!!No disability|:!!With a disability|!!|:"
+      )
+    ) %>%
+  filter(
+    !is.na(disability)
+    ) -> tab01_df_h
+
+get_acs(
+  geography = "state",
+  table = "B18101B",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18101_state_b
+
+b18101_state_b %>%
+  mutate(
+    disability = case_when(
+      grepl("With a disability", label) ~ "With a Disability",
+      grepl("No disability", label) ~ "No Disability"
+      ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|:!!No disability|:!!With a disability|!!|:"
+      )
+    ) %>%
+  filter(
+    !is.na(disability)
+    ) -> tab01_df_b
+
+get_acs(
+  geography = "state",
+  table = "B18101C",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18101_state_c
+
+b18101_state_c %>%
+  mutate(
+    disability = case_when(
+      grepl("With a disability", label) ~ "With a Disability",
+      grepl("No disability", label) ~ "No Disability"
+      ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|:!!No disability|:!!With a disability|!!|:"
+      )
+    ) %>%
+  filter(
+    !is.na(disability)
+    ) -> tab01_df_c
+
+get_acs(
+  geography = "state",
+  table = "B18101D",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18101_state_d
+
+b18101_state_d %>%
+  mutate(
+    disability = case_when(
+      grepl("With a disability", label) ~ "With a Disability",
+      grepl("No disability", label) ~ "No Disability"
+      ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|:!!No disability|:!!With a disability|!!|:"
+      )
+    ) %>%
+  filter(
+    !is.na(disability)
+    ) -> tab01_df_d
+
+get_acs(
+  geography = "state",
+  table = "B18101E",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18101_state_e
+
+b18101_state_e %>%
+  mutate(
+    disability = case_when(
+      grepl("With a disability", label) ~ "With a Disability",
+      grepl("No disability", label) ~ "No Disability"
+      ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|:!!No disability|:!!With a disability|!!|:"
+      )
+    ) %>%
+  filter(
+    !is.na(disability)
+    ) -> tab01_df_e
+
+get_acs(
+  geography = "state",
+  table = "B18101I",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18101_state_i
+
+b18101_state_i %>%
+  mutate(
+    disability = case_when(
+      grepl("With a disability", label) ~ "With a Disability",
+      grepl("No disability", label) ~ "No Disability"
+      ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|:!!No disability|:!!With a disability|!!|:"
+      )
+    ) %>%
+  filter(
+    !is.na(disability)
+    ) -> tab01_df_i
+
+```
+
+```{r }
+tab01_df_i$race_ethnicity = "Hispanic"
+tab01_df_h$race_ethnicity = "Non-Hispanic White"
+tab01_df_b$race_ethnicity = "Black or African-American Alone"
+tab01_df_c$race_ethnicity = "American Indian and Alaska Native Alone"
+tab01_df_d$race_ethnicity = "Asian Alone"
+tab01_df_e$race_ethnicity = "Native Hawaiian and Other Pacific Islander Alone"
+
+bind_rows(
+  tab01_df_i, tab01_df_b, tab01_df_c, 
+  tab01_df_d, tab01_df_e, tab01_df_h
+  ) -> tab01_race
+
+tab01_race %>%
+  filter(NAME == "Ohio") %>%
+  select(2, 4, 8:10) -> tab01_ohio
+
+tab01_ohio %>%
+  group_by(NAME, race_ethnicity) %>%
+  mutate(
+    total_race = sum(estimate)
+  ) %>%
+  group_by(NAME, race_ethnicity, disability) %>%
+  mutate(
+    total_race_disability = sum(estimate)
+  ) %>%
+  select(NAME, disability, race_ethnicity, total_race, total_race_disability) %>%
+  distinct() %>%
+  mutate(
+    prop_disabled = (total_race_disability / total_race)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With a Disability") %>%
+  select(3, 6) %>%
+  arrange(- prop_disabled) %>%
+  mutate(
+    prop_disabled = round(prop_disabled * 100, digits = 1)
+  ) %>%
+  knitr::kable(., 
+               booktabs = TRUE,
+               col.names = c("Race/Ethnicity", "% with a Disability"),
+               "html",
+               caption = "Percent of Racial/Ethnic Group with a Disability (Ohio, all ages)",
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  kableExtra::kable_styling(full_width = FALSE, "striped")
+
+```
+
+And for the counties?
+
+```{r }
+get_acs(
+  geography = "county",
+  state = "OH",
+  table = "B18101H",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18101_county_h
+
+b18101_county_h %>%
+  mutate(
+    disability = case_when(
+      grepl("With a disability", label) ~ "With a Disability",
+      grepl("No disability", label) ~ "No Disability"
+      ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|:!!No disability|:!!With a disability|!!|:"
+      )
+    ) %>%
+  filter(
+    !is.na(disability)
+    ) -> tab01_df_h
+
+get_acs(
+  geography = "county",
+  state = "OH",
+  table = "B18101B",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18101_county_b
+
+b18101_county_b %>%
+  mutate(
+    disability = case_when(
+      grepl("With a disability", label) ~ "With a Disability",
+      grepl("No disability", label) ~ "No Disability"
+      ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|:!!No disability|:!!With a disability|!!|:"
+      )
+    ) %>%
+  filter(
+    !is.na(disability)
+    ) -> tab01_df_b
+
+get_acs(
+  geography = "county",
+  state = "OH",
+  table = "B18101C",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18101_county_c
+
+b18101_county_c %>%
+  mutate(
+    disability = case_when(
+      grepl("With a disability", label) ~ "With a Disability",
+      grepl("No disability", label) ~ "No Disability"
+      ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|:!!No disability|:!!With a disability|!!|:"
+      )
+    ) %>%
+  filter(
+    !is.na(disability)
+    ) -> tab01_df_c
+
+get_acs(
+  geography = "county",
+  state = "OH",
+  table = "B18101D",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18101_county_d
+
+b18101_county_d %>%
+  mutate(
+    disability = case_when(
+      grepl("With a disability", label) ~ "With a Disability",
+      grepl("No disability", label) ~ "No Disability"
+      ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|:!!No disability|:!!With a disability|!!|:"
+      )
+    ) %>%
+  filter(
+    !is.na(disability)
+    ) -> tab01_df_d
+
+get_acs(
+  geography = "county",
+  state = "OH",
+  table = "B18101E",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18101_county_e
+
+b18101_county_e %>%
+  mutate(
+    disability = case_when(
+      grepl("With a disability", label) ~ "With a Disability",
+      grepl("No disability", label) ~ "No Disability"
+      ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|:!!No disability|:!!With a disability|!!|:"
+      )
+    ) %>%
+  filter(
+    !is.na(disability)
+    ) -> tab01_df_e
+
+get_acs(
+  geography = "county",
+  state = "OH",
+  table = "B18101I",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18101_county_i
+
+b18101_county_i %>%
+  mutate(
+    disability = case_when(
+      grepl("With a disability", label) ~ "With a Disability",
+      grepl("No disability", label) ~ "No Disability"
+      ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|:!!No disability|:!!With a disability|!!|:"
+      )
+    ) %>%
+  filter(
+    !is.na(disability)
+    ) -> tab01_df_i
+
+```
+
+```{r }
+tab01_df_i$race_ethnicity = "Hispanic"
+tab01_df_h$race_ethnicity = "Non-Hispanic White"
+tab01_df_b$race_ethnicity = "Black or African-American Alone"
+tab01_df_c$race_ethnicity = "American Indian and Alaska Native Alone"
+tab01_df_d$race_ethnicity = "Asian Alone"
+tab01_df_e$race_ethnicity = "Native Hawaiian and Other Pacific Islander Alone"
+
+bind_rows(
+  tab01_df_i, tab01_df_b, tab01_df_c, 
+  tab01_df_d, tab01_df_e, tab01_df_h
+  ) -> tab01_race
+
+tab01_race %>%
+  filter(
+    grepl(", Ohio", NAME)
+    ) %>%
+  select(2, 4, 8:10) -> tab01_ohio
+
+tab01_ohio %>%
+  group_by(NAME, race_ethnicity) %>%
+  mutate(
+    total_race = sum(estimate)
+  ) %>%
+  group_by(NAME, race_ethnicity, disability) %>%
+  mutate(
+    total_race_disability = sum(estimate)
+  ) %>%
+  select(NAME, disability, race_ethnicity, total_race, total_race_disability) %>%
+  distinct() %>%
+  mutate(
+    prop_disabled = (total_race_disability / total_race)
+  ) %>%
+  ungroup() -> tab_county_race_01 
+
+tab_county_race_01 %>%
+  filter(disability == "With a Disability") %>%
+  select(1, 3, 6) -> tab_county_race_02
+
+tab_county_race_02 %>%
+  group_by(NAME) %>%
+  pivot_wider(
+    names_from = race_ethnicity,
+    values_from = prop_disabled
+  ) %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio")
+  ) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population with a Disability, by Race/Ethnicity",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "Black or African-American Alone", "American Indian and Alaska Native Alone", "Asian Alone", "Native Hawaiian and Other Pacific Islander Alone", "Hispanic", "Non-Hispanic White"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c("Black or African-American Alone", "American Indian and Alaska Native Alone", "Asian Alone", "Native Hawaiian and Other Pacific Islander Alone", "Hispanic", "Non-Hispanic White"), 1) 
+
+```
+
+# Prevalence of Specific Difficulties
+
+## Hearing Difficulties at the State-level
+
+::: {.panel-tabset}
+
+### State Overall
+
+```{r }
+
+get_acs(
+  geography = "state",
+  table = "B18102",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18102_state
+
+b18102_state %>%
+  mutate(
+    sex = case_when(
+      grepl("Male", label) ~ "Male",
+      grepl("Female", label) ~ "Female"
+      ),
+    disability = case_when(
+      grepl("With a hearing difficulty", label) ~ "With a Hearing Difficulty",
+      grepl("No hearing difficulty", label) ~ "No Hearing Difficulty"
+      ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|!!Male:|!!Male:!!|!!Female:|!!Female:!!|:!!No hearing difficulty|:!!With a hearing difficulty|!!|:"
+      )
+    ) %>%
+  filter(
+    !is.na(sex),
+    !is.na(disability)
+    ) -> tab18102_df 
+
+tab18102_df %>%
+  group_by(NAME) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, disability) %>%
+  mutate(
+    total_hearing = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, disability, total, total_hearing) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_hearing / total)
+    ) %>%
+  select(1, 2, 3, 5) %>%
+  group_by(
+    NAME, total
+    ) %>%
+  mutate(
+    prop = round(prop * 100, digits = 1)
+  ) %>%
+  pivot_wider(
+    names_from = disability,
+    values_from = prop
+    ) -> tab_hearing
+
+```
+
+```{r }
+
+tab_hearing %>%
+  ungroup() %>%
+  select(1, 3) %>%
+  arrange(-`With a Hearing Difficulty`) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population with a Hearing Difficulty",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "% with a Hearing Difficulty"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('With a Hearing Difficulty'), 1)   
+
+```
+
+### State by Gender
+
+```{r}
+
+tab18102_df %>%
+  group_by(NAME, sex) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, disability) %>%
+  mutate(
+    total_hearing = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, disability, total, total_hearing) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_hearing / total)
+    ) %>%
+  select(1, 2, 3, 6) %>%
+  group_by(NAME, disability) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = prop
+    ) -> tab_hearing2
+
+
+tab_hearing2 %>%
+  ungroup() %>%
+  filter(disability == "With a Hearing Difficulty") %>%
+  select(1, 3, 4) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population with a Hearing Difficulty, by Gender",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "Male", "Female"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Male', 'Female'), 1) 
+
+
+```
+
+### State by Age-group
+
+```{r }
+
+tab18102_df %>%
+  group_by(NAME, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, age, disability) %>%
+  mutate(
+    total_hearing = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, age, disability, total, total_hearing) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_hearing / total)
+    ) %>%
+  filter(disability == "With a Hearing Difficulty") %>%
+  select(1, 2, 6) %>%
+  group_by(NAME) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+    ) -> tab_hearing2
+
+tab_hearing2 %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population with a Hearing Difficulty, by Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "% Under 5", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Under 5 years', '5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+### State by Gender and Age-group
+
+```{r }
+
+tab18102_df %>%
+  group_by(NAME, sex, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, age, disability) %>%
+  mutate(
+    total_hearing = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, age, disability, total, total_hearing) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_hearing / total)
+    ) %>%
+  select(1, 2, 3, 4, 7) %>%
+  group_by(NAME, sex, disability) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+    ) -> tab_hearing3
+
+
+tab_hearing3 %>%
+  ungroup() %>%
+  filter(disability == "With a Hearing Difficulty") %>%
+  select(1, 2, 4:9) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population with a Hearing Difficulty, by Gender and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "Gender", "% Under 5", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Under 5 years', '5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+:::
+
+
+## Hearing Difficulties at the County-level
+
+::: {.panel-tabset}
+
+### County Overall
+
+```{r }
+get_acs(
+  geography = "county",
+  state = "Ohio",
+  table = "B18102",
+  year = 2020
+) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18102_county
+
+b18102_county %>%
+  mutate(
+    sex = case_when(
+      grepl("Male", label) ~ "Male",
+      grepl("Female", label) ~ "Female"
+    ),
+    disability = case_when(
+      grepl("With a hearing difficulty", label) ~ "With a Hearing Difficulty",
+      grepl("No hearing difficulty", label) ~ "No Hearing Difficulty"
+    ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|!!Male:|!!Male:!!|!!Female:|!!Female:!!|:!!No hearing difficulty|:!!With a hearing difficulty|!!|:"
+    )
+  ) %>%
+  filter(
+    !is.na(sex),
+    !is.na(disability)
+  ) -> tab18102_df 
+
+tab18102_df %>%
+  group_by(NAME) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, disability) %>%
+  mutate(
+    total_hearing= sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, disability, total, total_hearing) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_hearing / total)
+  ) %>%
+  select(1, 2, 3, 5) %>%
+  group_by(
+    NAME, total
+  ) %>%
+  pivot_wider(
+    names_from = disability,
+    values_from = prop
+  ) -> tab_hearing_c
+
+```
+
+```{r }
+
+tab_hearing_c %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio") 
+  ) %>%
+  ungroup() %>%
+  select(1, 3) %>%
+  arrange(- `With a Hearing Difficulty`) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population with a Hearing Difficulty",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "% with a Hearing Difficulty"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('With a Hearing Difficulty'), 1)     
+
+```
+
+### County by Gender
+
+```{r }
+
+tab18102_df %>%
+  group_by(NAME, sex) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, disability) %>%
+  mutate(
+    total_hearing = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, disability, total, total_hearing) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_hearing / total)
+  ) %>%
+  filter(disability == "With a Hearing Difficulty") %>%
+  select(1, 2, 6) %>%
+  group_by(
+    NAME
+  ) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = prop
+  ) -> tab_hearing_c2
+
+```
+
+```{r }
+
+tab_hearing_c2 %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio")
+  ) %>%
+  ungroup() %>%
+  arrange(NAME) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population with a Hearing Difficulty, by Gender",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "Male %", "Female %"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Male', 'Female'), 1) 
+```
+
+
+### County by Age-group
+
+```{r}
+
+tab18102_df %>%
+  group_by(NAME, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, age, disability) %>%
+  mutate(
+    total_hearing = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, age, disability, total, total_hearing) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_hearing / total)
+    ) %>%
+  filter(disability == "With a Hearing Difficulty") %>%
+  select(1, 2, 6) %>%
+  group_by(NAME) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+    ) -> tab_hearing2
+
+tab_hearing2 %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio")
+  ) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population with a Hearing Difficulty, by Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "% Under 5", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Under 5 years', '5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+
+### County by Gender and Age-group
+
+```{r }
+
+tab18102_df %>%
+  group_by(NAME, sex, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, age, disability) %>%
+  mutate(
+    total_hearing = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, age, disability, total, total_hearing) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_hearing / total)
+  ) %>%
+  filter(disability == "With a Hearing Difficulty") %>%
+  select(1, 2, 3, 7) %>%
+  group_by(
+    NAME, sex
+  ) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) -> tab_hearing_c3
+
+```
+
+```{r }
+
+tab_hearing_c3 %>%
+  ungroup() %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population with a Disability, by Gender and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "Gender", "% Under 5", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Under 5 years', '5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+:::
+
+## Hearing Difficulty in Appalachia vs Rest of Ohio
+
+::: {.panel-tabset}
+
+### Overall
+
+```{r}
+
+tab18102_df %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio"),
+    appalachia = case_when(
+      NAME %in% appalachian.ohio ~ "Appalachia",
+      TRUE ~ "Rest of Ohio"
+    )
+  ) -> mydf
+
+mydf %>%
+  group_by(appalachia) %>%
+  mutate(
+    total_appalachia = sum(estimate) 
+  ) %>%
+  group_by(appalachia, disability) %>%
+  mutate(
+    total_appalachia_disability = sum(estimate),
+    prop = (total_appalachia_disability / total_appalachia)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With a Hearing Difficulty") %>%
+  select(appalachia, disability, prop) %>%
+  distinct() -> taba
+  
+taba %>%
+  select(1, 3) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population with a Hearing Difficulty, by Appalachian Residence Status",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "% with Hearing Difficulty"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('prop'), 1) 
+
+```
+
+### By Gender
+
+```{r}
+
+mydf %>%
+  group_by(appalachia, sex) %>%
+  mutate(
+    total_appalachia_sex = sum(estimate) 
+  ) %>%
+  group_by(appalachia, sex, disability) %>%
+  mutate(
+    total_appalachia_sex_disability = sum(estimate),
+    prop = (total_appalachia_sex_disability / total_appalachia_sex)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With a Hearing Difficulty") %>%
+  select(appalachia, sex, disability, prop) %>%
+  distinct() -> tabb
+  
+tabb %>%
+  select(1, 2, 4) %>%
+  group_by(appalachia) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population with a Hearing Difficulty, by Appalachian Residence Status and Gender",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "Male", "Female"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Male', 'Female'), 1) 
+
+```
+
+### By Age-group
+
+```{r}
+
+mydf %>%
+  group_by(appalachia, age) %>%
+  mutate(
+    total_appalachia_age = sum(estimate) 
+  ) %>%
+  group_by(appalachia, age, disability) %>%
+  mutate(
+    total_appalachia_age_disability = sum(estimate),
+    prop = (total_appalachia_age_disability / total_appalachia_age)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With a Hearing Difficulty") %>%
+  select(appalachia, age, disability, prop) %>%
+  distinct() -> tabc
+  
+tabc %>%
+  select(1, 2, 4) %>%
+  group_by(appalachia) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population with a Hearing Difficulty, by Appalachian Residence Status and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "% Under 5", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Under 5 years', '5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+
+### By Gender and Age-group
+
+```{r}
+
+mydf %>%
+  group_by(appalachia, sex, age) %>%
+  mutate(
+    total_appalachia_sex_age = sum(estimate) 
+  ) %>%
+  group_by(appalachia, sex, age, disability) %>%
+  mutate(
+    total_appalachia_sex_age_disability = sum(estimate),
+    prop = (total_appalachia_sex_age_disability / total_appalachia_sex_age)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With a Hearing Difficulty") %>%
+  select(appalachia, sex, age, disability, prop) %>%
+  distinct() -> tabd
+  
+tabd %>%
+  select(1, 2, 3, 5) %>%
+  group_by(appalachia, sex) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population with a Hearing Difficulty, by Appalachian Residence Status, Gender, and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "Gender",  "% Under 5", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Under 5 years', '5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+:::
+
+
+## Vision Difficulty at the State-level 
+
+::: {.panel-tabset}
+
+### State Overall
+
+```{r }
+
+get_acs(
+  geography = "state",
+  table = "B18103",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18103_state
+
+b18103_state %>%
+  mutate(
+    sex = case_when(
+      grepl("Male", label) ~ "Male",
+      grepl("Female", label) ~ "Female"
+      ),
+    disability = case_when(
+      grepl("With a vision difficulty", label) ~ "With a Vision Difficulty",
+      grepl("No vision difficulty", label) ~ "No Vision Difficulty"
+      ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|!!Male:|!!Male:!!|!!Female:|!!Female:!!|:!!No vision difficulty|:!!With a vision difficulty|!!|:"
+      )
+    ) %>%
+  filter(
+    !is.na(sex),
+    !is.na(disability)
+    ) -> tab18103_df 
+
+tab18103_df %>%
+  group_by(NAME) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+    ) %>%
+  select(1, 2, 3, 5) %>%
+  group_by(
+    NAME, total
+    ) %>%
+  pivot_wider(
+    names_from = disability,
+    values_from = prop
+    ) -> tab_vision
+
+```
+
+```{r }
+
+tab_vision %>%
+  ungroup() %>%
+  select(1, 3) %>%
+  arrange( - `With a Vision Difficulty`) %>%
+   DT::datatable(
+    ., 
+    caption = "Percent of State Population with Vision Difficulty",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "% with Vision Difficulty"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('With a Vision Difficulty'), 1)   
+
+```
+
+### State by Gender
+
+
+```{r}
+
+tab18103_df %>%
+  sf::st_drop_geometry() %>%
+  group_by(NAME, sex) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+    ) %>%
+  filter(disability == "With a Vision Difficulty") %>%
+  select(1, 2, 6) %>%
+  group_by(
+    NAME
+    ) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = prop
+    ) -> tab_vision
+
+tab_vision %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population with a Vision Difficulty, by Gender",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "Male", "Female"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Male', 'Female'), 1)   
+
+```
+
+### State by Age
+
+
+```{r}
+
+tab18103_df %>%
+  sf::st_drop_geometry() %>%
+  group_by(NAME, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, age, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, age, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+    ) %>%
+  filter(disability == "With a Vision Difficulty") %>%
+  select(1, 2, 6) %>%
+  group_by(
+    NAME
+    ) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+    ) -> tab_vision
+
+tab_vision %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population with a Vision Difficulty, by Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "% Under 5", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Under 5 years', '5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1)   
+
+```
+
+### State by Gender and Age-group
+
+```{r }
+
+tab18103_df %>%
+  group_by(NAME, sex, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, age, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, age, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+    ) %>%
+  select(1, 2, 3, 4, 7) %>%
+  group_by(NAME, sex, disability) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+    ) -> tab_vision3
+
+
+tab_vision3 %>%
+  ungroup() %>%
+  filter(disability == "With a vision Difficulty") %>%
+  select(1, 2, 4:9) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population with a Vision Difficulty, by Gender and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "Gender", "% Under 5", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Under 5 years', '5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+:::
+
+## Vision Difficulty at the County-level
+
+::: {.panel-tabset}
+
+```{r }
+
+get_acs(
+  geography = "county",
+  state = "Ohio",
+  table = "B18103",
+  year = 2020
+) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18103_county
+
+b18103_county %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio"),
+    sex = case_when(
+      grepl("Male", label) ~ "Male",
+      grepl("Female", label) ~ "Female"
+    ),
+    disability = case_when(
+      grepl("With a vision difficulty", label) ~ "With a Vision Difficulty",
+      grepl("No vision difficulty", label) ~ "No Vision Difficulty"
+    ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|!!Male:|!!Male:!!|!!Female:|!!Female:!!|:!!No vision difficulty|:!!With a vision difficulty|!!|:"
+    )
+  ) %>%
+  filter(
+    !is.na(sex),
+    !is.na(disability)
+  ) -> tab18103_df_c 
+
+tab18103_df_c %>%
+  group_by(NAME) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+  ) %>%
+  select(1, 2, 3, 5) %>%
+  group_by(
+    NAME, total
+  ) %>%
+  pivot_wider(
+    names_from = disability,
+    values_from = prop
+  ) -> tab_vison_c
+
+```
+
+### County Overall
+
+```{r}
+
+tab_vison_c %>%
+  ungroup() %>%
+  select(1, 3) %>%
+  arrange(- `With a Vision Difficulty`) %>%
+   DT::datatable(
+    ., 
+    caption = "Percent of County Population with a Vision Difficulty",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "% with a Vision Difficulty"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('With a Vision Difficulty'), 1)   
+
+```
+
+```{r}
+
+tab18103_df_c %>%
+  group_by(NAME, sex) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+  ) %>%
+  select(1, 2, 3, 6) %>%
+  group_by(
+    NAME, disability
+  ) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = prop
+  ) %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio")
+  ) -> tab_vison_c2
+
+```
+
+### County by Gender
+
+```{r}
+
+tab_vison_c2 %>%
+  ungroup() %>%
+  filter(disability == "With a Vision Difficulty") %>%
+  select(1, 3, 4) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population with a Vision Difficulty, by Gender",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "Male", "Female"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Male', 'Female'), 1) 
+
+```
+
+### County by Age-group 
+
+```{r}
+
+tab18103_df_c %>%
+  group_by(NAME, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, age, disability) %>%
+  mutate(
+    total_disabled = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, age, disability, total, total_disabled) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_disabled / total)
+  ) %>%
+  filter(disability == "With a Vision Difficulty") %>%
+  select(NAME, age, prop) %>%
+  group_by(
+    NAME
+  ) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) -> tab_vision_c3
+
+```
+
+```{r}
+
+tab_vision_c3 %>%
+    ungroup() %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population with a Vision Difficulty, by Gender and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "% Under 5", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Under 5 years', '5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1)
+```
+
+
+### County by Gender and Age-group
+
+```{r}
+
+tab18103_df_c %>%
+  group_by(NAME, sex, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, age, disability) %>%
+  mutate(
+    total_hearing = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, age, disability, total, total_hearing) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_hearing / total)
+  ) %>%
+  filter(disability == "With a Vision Difficulty") %>%
+  select(1, 2, 3, 7) %>%
+  group_by(
+    NAME, sex
+  ) %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio")
+  ) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) -> tab_vision_c4
+
+```
+
+```{r}
+
+tab_vision_c4 %>%
+  ungroup() %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population with a Vision Difficulty, by Gender and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "Gender", "% Under 5", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Under 5 years', '5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+:::
+
+## Vision Difficulty in Appalachia vs Rest of Ohio
+
+::: {.panel-tabset}
+
+### Overall
+
+```{r}
+
+tab18103_df_c %>%
+  mutate(
+    appalachia = case_when(
+      NAME %in% appalachian.ohio ~ "Appalachia",
+      TRUE ~ "Rest of Ohio"
+    )
+  ) -> mydf
+
+mydf %>%
+  group_by(appalachia) %>%
+  mutate(
+    total_appalachia = sum(estimate) 
+  ) %>%
+  group_by(appalachia, disability) %>%
+  mutate(
+    total_appalachia_disability = sum(estimate),
+    prop = (total_appalachia_disability / total_appalachia)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With a Vision Difficulty") %>%
+  select(appalachia, disability, prop) %>%
+  distinct() -> taba
+  
+taba %>%
+  select(1, 3) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population with a Vision Difficulty, by Appalachian Residence Status",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "% with Vision Difficulty"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('prop'), 1) 
+
+```
+
+### By Gender
+
+```{r}
+
+mydf %>%
+  group_by(appalachia, sex) %>%
+  mutate(
+    total_appalachia_sex = sum(estimate) 
+  ) %>%
+  group_by(appalachia, sex, disability) %>%
+  mutate(
+    total_appalachia_sex_disability = sum(estimate),
+    prop = (total_appalachia_sex_disability / total_appalachia_sex)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With a Vision Difficulty") %>%
+  select(appalachia, sex, disability, prop) %>%
+  distinct() -> tabb
+  
+tabb %>%
+  select(1, 2, 4) %>%
+  group_by(appalachia) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population with a Vision Difficulty, by Appalachian Residence Status and Gender",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "Male", "Female"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Male', 'Female'), 1) 
+
+```
+
+### By Age-group
+
+```{r}
+
+mydf %>%
+  group_by(appalachia, age) %>%
+  mutate(
+    total_appalachia_age = sum(estimate) 
+  ) %>%
+  group_by(appalachia, age, disability) %>%
+  mutate(
+    total_appalachia_age_disability = sum(estimate),
+    prop = (total_appalachia_age_disability / total_appalachia_age)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With a Vision Difficulty") %>%
+  select(appalachia, age, disability, prop) %>%
+  distinct() -> tabc
+  
+tabc %>%
+  select(1, 2, 4) %>%
+  group_by(appalachia) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population with a Vision Difficulty, by Appalachian Residence Status and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "% Under 5", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Under 5 years', '5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+
+### By Gender and Age-group
+
+```{r}
+
+mydf %>%
+  group_by(appalachia, sex, age) %>%
+  mutate(
+    total_appalachia_sex_age = sum(estimate) 
+  ) %>%
+  group_by(appalachia, sex, age, disability) %>%
+  mutate(
+    total_appalachia_sex_age_disability = sum(estimate),
+    prop = (total_appalachia_sex_age_disability / total_appalachia_sex_age)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With a Vision Difficulty") %>%
+  select(appalachia, sex, age, disability, prop) %>%
+  distinct() -> tabd
+  
+tabd %>%
+  select(1, 2, 3, 5) %>%
+  group_by(appalachia, sex) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population with a Vision Difficulty, by Appalachian Residence Status, Gender, and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "Gender",  "% Under 5", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Under 5 years', '5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+:::
+
+## Cognitive Difficulty at the State-level 
+
+::: {.panel-tabset}
+
+### State Overall
+
+```{r }
+
+get_acs(
+  geography = "state",
+  table = "B18104",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> B18104_state
+
+B18104_state %>%
+  mutate(
+    sex = case_when(
+      grepl("Male", label) ~ "Male",
+      grepl("Female", label) ~ "Female"
+      ),
+    disability = case_when(
+      grepl("With a cognitive difficulty", label) ~ "With a cognitive Difficulty",
+      grepl("No cognitive difficulty", label) ~ "No cognitive Difficulty"
+      ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|!!Male:|!!Male:!!|!!Female:|!!Female:!!|:!!No cognitive difficulty|:!!With a cognitive difficulty|!!|:"
+      )
+    ) %>%
+  filter(
+    !is.na(sex),
+    !is.na(disability)
+    ) -> taB18104_df 
+
+taB18104_df %>%
+  group_by(NAME) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+    ) %>%
+  select(1, 2, 3, 5) %>%
+  group_by(
+    NAME, total
+    ) %>%
+  pivot_wider(
+    names_from = disability,
+    values_from = prop
+    ) -> tab_vision
+
+```
+
+```{r }
+
+tab_vision %>%
+  ungroup() %>%
+  select(1, 3) %>%
+  arrange( - `With a cognitive Difficulty`) %>%
+   DT::datatable(
+    ., 
+    caption = "Percent of State Population with a Cognitive Difficulty",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "% with Cognitive Difficulty"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('With a cognitive Difficulty'), 1)   
+
+```
+
+### State by Gender
+
+
+```{r}
+
+taB18104_df %>%
+  sf::st_drop_geometry() %>%
+  group_by(NAME, sex) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+    ) %>%
+  filter(disability == "With a cognitive Difficulty") %>%
+  select(1, 2, 6) %>%
+  group_by(
+    NAME
+    ) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = prop
+    ) -> tab_vision
+
+tab_vision %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population With a Cognitive Difficulty, by Gender",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "Male", "Female"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Male', 'Female'), 1)   
+
+```
+
+### State by Age
+
+
+```{r}
+
+taB18104_df %>%
+  sf::st_drop_geometry() %>%
+  group_by(NAME, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, age, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, age, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+    ) %>%
+  filter(disability == "With a cognitive Difficulty") %>%
+  select(1, 2, 6) %>%
+  group_by(
+    NAME
+    ) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+    ) -> tab_vision
+
+tab_vision %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population With a Cognitive Difficulty, by Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1)   
+
+```
+
+### State by Gender and Age-group
+
+```{r }
+
+taB18104_df %>%
+  group_by(NAME, sex, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, age, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, age, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+    ) %>%
+  select(1, 2, 3, 4, 7) %>%
+  group_by(NAME, sex, disability) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+    ) -> tab_vision3
+
+
+tab_vision3 %>%
+  ungroup() %>%
+  filter(disability == "With a cognitive Difficulty") %>%
+  select(1, 2, 4:8) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population With a Cognitive Difficulty, by Gender and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "Gender", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+:::
+
+## Cognitive Difficulty at the County-level
+
+::: {.panel-tabset}
+
+```{r }
+
+get_acs(
+  geography = "county",
+  state = "Ohio",
+  table = "B18104",
+  year = 2020
+) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> B18104_county
+
+B18104_county %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio"),
+    sex = case_when(
+      grepl("Male", label) ~ "Male",
+      grepl("Female", label) ~ "Female"
+    ),
+    disability = case_when(
+      grepl("With a cognitive difficulty", label) ~ "With a cognitive Difficulty",
+      grepl("No cognitive difficulty", label) ~ "No cognitive Difficulty"
+    ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|!!Male:|!!Male:!!|!!Female:|!!Female:!!|:!!No cognitive difficulty|:!!With a cognitive difficulty|!!|:"
+    )
+  ) %>%
+  filter(
+    !is.na(sex),
+    !is.na(disability)
+  ) -> taB18104_df_c 
+
+taB18104_df_c %>%
+  group_by(NAME) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+  ) %>%
+  select(1, 2, 3, 5) %>%
+  group_by(
+    NAME, total
+  ) %>%
+  pivot_wider(
+    names_from = disability,
+    values_from = prop
+  ) -> tab_vison_c
+
+```
+
+### County Overall
+
+```{r}
+
+tab_vison_c %>%
+  ungroup() %>%
+  select(1, 3) %>%
+  arrange(- `With a cognitive Difficulty`) %>%
+   DT::datatable(
+    ., 
+    caption = "Percent of County Population With a Cognitive Difficulty",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "% With a cognitive Difficulty"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('With a cognitive Difficulty'), 1)   
+
+```
+
+```{r}
+
+taB18104_df_c %>%
+  group_by(NAME, sex) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+  ) %>%
+  select(1, 2, 3, 6) %>%
+  group_by(
+    NAME, disability
+  ) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = prop
+  ) %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio")
+  ) -> tab_vison_c2
+
+```
+
+### County by Gender
+
+```{r}
+
+tab_vison_c2 %>%
+  ungroup() %>%
+  filter(disability == "With a cognitive Difficulty") %>%
+  select(1, 3, 4) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population With a Cognitive Difficulty, by Gender",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "Male", "Female"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Male', 'Female'), 1) 
+
+```
+
+### County by Age-group 
+
+```{r}
+
+taB18104_df_c %>%
+  group_by(NAME, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, age, disability) %>%
+  mutate(
+    total_disabled = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, age, disability, total, total_disabled) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_disabled / total)
+  ) %>%
+  filter(disability == "With a cognitive Difficulty") %>%
+  select(NAME, age, prop) %>%
+  group_by(
+    NAME
+  ) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) -> tab_vision_c3
+
+```
+
+```{r}
+
+tab_vision_c3 %>%
+    ungroup() %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population With a Cognitive Difficulty, by Gender and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1)
+```
+
+
+### County by Gender and Age-group
+
+```{r}
+
+taB18104_df_c %>%
+  group_by(NAME, sex, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, age, disability) %>%
+  mutate(
+    total_hearing = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, age, disability, total, total_hearing) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_hearing / total)
+  ) %>%
+  filter(disability == "With a cognitive Difficulty") %>%
+  select(1, 2, 3, 7) %>%
+  group_by(
+    NAME, sex
+  ) %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio")
+  ) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) -> tab_vision_c4
+
+```
+
+```{r}
+
+tab_vision_c4 %>%
+  ungroup() %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population With a Cognitive Difficulty, by Gender and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "Gender", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+:::
+
+## Cognitive Difficulty in Appalachia vs Rest of Ohio
+
+::: {.panel-tabset}
+
+### Overall
+
+```{r}
+
+taB18104_df_c %>%
+  mutate(
+    appalachia = case_when(
+      NAME %in% appalachian.ohio ~ "Appalachia",
+      TRUE ~ "Rest of Ohio"
+    )
+  ) -> mydf
+
+mydf %>%
+  group_by(appalachia) %>%
+  mutate(
+    total_appalachia = sum(estimate) 
+  ) %>%
+  group_by(appalachia, disability) %>%
+  mutate(
+    total_appalachia_disability = sum(estimate),
+    prop = (total_appalachia_disability / total_appalachia)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With a cognitive Difficulty") %>%
+  select(appalachia, disability, prop) %>%
+  distinct() -> taba
+  
+taba %>%
+  select(1, 3) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population With a Cognitive Difficulty, by Appalachian Residence Status",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "% with Cognitive Difficulty"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('prop'), 1) 
+
+```
+
+### By Gender
+
+```{r}
+
+mydf %>%
+  group_by(appalachia, sex) %>%
+  mutate(
+    total_appalachia_sex = sum(estimate) 
+  ) %>%
+  group_by(appalachia, sex, disability) %>%
+  mutate(
+    total_appalachia_sex_disability = sum(estimate),
+    prop = (total_appalachia_sex_disability / total_appalachia_sex)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With a cognitive Difficulty") %>%
+  select(appalachia, sex, disability, prop) %>%
+  distinct() -> tabb
+  
+tabb %>%
+  select(1, 2, 4) %>%
+  group_by(appalachia) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population With a Cognitive Difficulty, by Appalachian Residence Status and Gender",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "Male", "Female"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Male', 'Female'), 1) 
+
+```
+
+### By Age-group
+
+```{r}
+
+mydf %>%
+  group_by(appalachia, age) %>%
+  mutate(
+    total_appalachia_age = sum(estimate) 
+  ) %>%
+  group_by(appalachia, age, disability) %>%
+  mutate(
+    total_appalachia_age_disability = sum(estimate),
+    prop = (total_appalachia_age_disability / total_appalachia_age)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With a cognitive Difficulty") %>%
+  select(appalachia, age, disability, prop) %>%
+  distinct() -> tabc
+  
+tabc %>%
+  select(1, 2, 4) %>%
+  group_by(appalachia) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population With a Cognitive Difficulty, by Appalachian Residence Status and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+
+### By Gender and Age-group
+
+```{r}
+
+mydf %>%
+  group_by(appalachia, sex, age) %>%
+  mutate(
+    total_appalachia_sex_age = sum(estimate) 
+  ) %>%
+  group_by(appalachia, sex, age, disability) %>%
+  mutate(
+    total_appalachia_sex_age_disability = sum(estimate),
+    prop = (total_appalachia_sex_age_disability / total_appalachia_sex_age)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With a cognitive Difficulty") %>%
+  select(appalachia, sex, age, disability, prop) %>%
+  distinct() -> tabd
+  
+tabd %>%
+  select(1, 2, 3, 5) %>%
+  group_by(appalachia, sex) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population With a Cognitive Difficulty, by Appalachian Residence Status, Gender, and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "Gender",  "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+:::
+
+
+## Ambulatory Difficulty at the State-level
+
+::: {.panel-tabset}
+
+### State Overall
+
+```{r }
+
+get_acs(
+  geography = "state",
+  table = "B18105",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> B18105_state
+
+B18105_state %>%
+  mutate(
+    sex = case_when(
+      grepl("Male", label) ~ "Male",
+      grepl("Female", label) ~ "Female"
+      ),
+    disability = case_when(
+      grepl("With an ambulatory difficulty", label) ~ "With an Ambulatory Difficulty",
+      grepl("No ambulatory difficulty", label) ~ "No Ambulatory Difficulty"
+      ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|!!Male:|!!Male:!!|!!Female:|!!Female:!!|:!!No ambulatory difficulty|:!!With an ambulatory difficulty|!!|:"
+      )
+    ) %>%
+  filter(
+    !is.na(sex),
+    !is.na(disability)
+    ) -> taB18105_df 
+
+taB18105_df %>%
+  group_by(NAME) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  mutate(
+    prop = (total_vision / total)
+    ) %>%
+  select(NAME, disability, total, total_vision, prop) %>%
+  distinct() %>%
+  select(1, 2, 3, 5) %>%
+  group_by(
+    NAME, total
+    ) %>%
+  pivot_wider(
+    names_from = disability,
+    values_from = prop
+    ) -> tab_vision
+
+```
+
+```{r }
+
+tab_vision %>%
+  ungroup() %>%
+  select(1, 3) %>%
+  arrange( - `With an Ambulatory Difficulty`) %>%
+   DT::datatable(
+    ., 
+    caption = "Percent of State Population with an Ambulatory Difficulty",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "% with an Ambulatory Difficulty"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('With an Ambulatory Difficulty'), 1)   
+
+```
+
+### State by Gender
+
+
+```{r}
+
+taB18105_df %>%
+  sf::st_drop_geometry() %>%
+  group_by(NAME, sex) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+    ) %>%
+  filter(disability == "With an Ambulatory Difficulty") %>%
+  select(1, 2, 6) %>%
+  group_by(
+    NAME
+    ) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = prop
+    ) -> tab_vision
+
+tab_vision %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population With an Ambulatory Difficulty, by Gender",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "Male", "Female"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Male', 'Female'), 1)   
+
+```
+
+### State by Age
+
+
+```{r}
+
+taB18105_df %>%
+  sf::st_drop_geometry() %>%
+  group_by(NAME, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, age, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, age, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+    ) %>%
+  filter(disability == "With an Ambulatory Difficulty") %>%
+  select(1, 2, 6) %>%
+  group_by(
+    NAME
+    ) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+    ) -> tab_vision
+
+tab_vision %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population With an Ambulatory Difficulty, by Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1)   
+
+```
+
+### State by Gender and Age-group
+
+```{r }
+
+taB18105_df %>%
+  group_by(NAME, sex, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, age, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, age, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+    ) %>%
+  select(1, 2, 3, 4, 7) %>%
+  group_by(NAME, sex, disability) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+    ) -> tab_vision3
+
+tab_vision3 %>%
+  ungroup() %>%
+  filter(disability == "With an Ambulatory Difficulty") %>%
+  select(1, 2, 4:8) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population With an Ambulatory Difficulty, by Gender and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "Gender", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+:::
+
+## Ambulatory Difficulty at the County-level
+
+::: {.panel-tabset}
+
+```{r }
+
+get_acs(
+  geography = "county",
+  state = "Ohio",
+  table = "B18105",
+  year = 2020
+) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> B18105_county
+
+B18105_county %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio"),
+    sex = case_when(
+      grepl("Male", label) ~ "Male",
+      grepl("Female", label) ~ "Female"
+    ),
+    disability = case_when(
+      grepl("With an ambulatory difficulty", label) ~ "With an Ambulatory Difficulty",
+      grepl("No ambulatory difficulty", label) ~ "No Ambulatory Difficulty"
+    ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|!!Male:|!!Male:!!|!!Female:|!!Female:!!|:!!No ambulatory difficulty|:!!With an ambulatory difficulty|!!|:"
+    )
+  ) %>%
+  filter(
+    !is.na(sex),
+    !is.na(disability)
+  ) -> taB18105_df_c 
+
+taB18105_df_c %>%
+  group_by(NAME) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+  ) %>%
+  select(1, 2, 3, 5) %>%
+  group_by(
+    NAME, total
+  ) %>%
+  pivot_wider(
+    names_from = disability,
+    values_from = prop
+  ) -> tab_vison_c
+
+```
+
+### County Overall
+
+```{r}
+
+tab_vison_c %>%
+  ungroup() %>%
+  select(1, 3) %>%
+  arrange(- `With an Ambulatory Difficulty`) %>%
+   DT::datatable(
+    ., 
+    caption = "Percent of County Population With an Ambulatory Difficulty",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "% With an Ambulatory Difficulty"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('With an Ambulatory Difficulty'), 1)   
+
+```
+
+```{r}
+
+taB18105_df_c %>%
+  group_by(NAME, sex) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+  ) %>%
+  select(1, 2, 3, 6) %>%
+  group_by(
+    NAME, disability
+  ) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = prop
+  ) %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio")
+  ) -> tab_vison_c2
+
+```
+
+### County by Gender
+
+```{r}
+
+tab_vison_c2 %>%
+  ungroup() %>%
+  filter(disability == "With an Ambulatory Difficulty") %>%
+  select(1, 3, 4) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population With an Ambulatory Difficulty, by Gender",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "Male", "Female"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Male', 'Female'), 1) 
+
+```
+
+### County by Age-group 
+
+```{r}
+
+taB18105_df_c %>%
+  group_by(NAME, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, age, disability) %>%
+  mutate(
+    total_disabled = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, age, disability, total, total_disabled) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_disabled / total)
+  ) %>%
+  filter(disability == "With an Ambulatory Difficulty") %>%
+  select(NAME, age, prop) %>%
+  group_by(
+    NAME
+  ) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) -> tab_vision_c3
+
+```
+
+```{r}
+
+tab_vision_c3 %>%
+    ungroup() %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population With an Ambulatory Difficulty, by Gender and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1)
+```
+
+
+### County by Gender and Age-group
+
+```{r}
+
+taB18105_df_c %>%
+  group_by(NAME, sex, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, age, disability) %>%
+  mutate(
+    total_hearing = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, age, disability, total, total_hearing) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_hearing / total)
+  ) %>%
+  filter(disability == "With an Ambulatory Difficulty") %>%
+  select(1, 2, 3, 7) %>%
+  group_by(
+    NAME, sex
+  ) %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio")
+  ) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) -> tab_vision_c4
+
+```
+
+```{r}
+
+tab_vision_c4 %>%
+  ungroup() %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population With an Ambulatory Difficulty, by Gender and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "Gender", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+:::
+
+## Ambulatory Difficulty in Appalachia vs Rest of Ohio
+
+::: {.panel-tabset}
+
+### Overall
+
+```{r}
+
+taB18105_df_c %>%
+  mutate(
+    appalachia = case_when(
+      NAME %in% appalachian.ohio ~ "Appalachia",
+      TRUE ~ "Rest of Ohio"
+    )
+  ) -> mydf
+
+mydf %>%
+  group_by(appalachia) %>%
+  mutate(
+    total_appalachia = sum(estimate) 
+  ) %>%
+  group_by(appalachia, disability) %>%
+  mutate(
+    total_appalachia_disability = sum(estimate),
+    prop = (total_appalachia_disability / total_appalachia)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With an Ambulatory Difficulty") %>%
+  select(appalachia, disability, prop) %>%
+  distinct() -> taba
+  
+taba %>%
+  select(1, 3) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population With an Ambulatory Difficulty, by Appalachian Residence Status",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "% with an Ambulatory Difficulty"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('prop'), 1) 
+
+```
+
+### By Gender
+
+```{r}
+
+mydf %>%
+  group_by(appalachia, sex) %>%
+  mutate(
+    total_appalachia_sex = sum(estimate) 
+  ) %>%
+  group_by(appalachia, sex, disability) %>%
+  mutate(
+    total_appalachia_sex_disability = sum(estimate),
+    prop = (total_appalachia_sex_disability / total_appalachia_sex)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With an Ambulatory Difficulty") %>%
+  select(appalachia, sex, disability, prop) %>%
+  distinct() -> tabb
+  
+tabb %>%
+  select(1, 2, 4) %>%
+  group_by(appalachia) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population With an Ambulatory Difficulty, by Appalachian Residence Status and Gender",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "Male", "Female"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Male', 'Female'), 1) 
+
+```
+
+### By Age-group
+
+```{r}
+
+mydf %>%
+  group_by(appalachia, age) %>%
+  mutate(
+    total_appalachia_age = sum(estimate) 
+  ) %>%
+  group_by(appalachia, age, disability) %>%
+  mutate(
+    total_appalachia_age_disability = sum(estimate),
+    prop = (total_appalachia_age_disability / total_appalachia_age)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With an Ambulatory Difficulty") %>%
+  select(appalachia, age, disability, prop) %>%
+  distinct() -> tabc
+  
+tabc %>%
+  select(1, 2, 4) %>%
+  group_by(appalachia) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population With an Ambulatory Difficulty, by Appalachian Residence Status and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+
+### By Gender and Age-group
+
+```{r}
+
+mydf %>%
+  group_by(appalachia, sex, age) %>%
+  mutate(
+    total_appalachia_sex_age = sum(estimate) 
+  ) %>%
+  group_by(appalachia, sex, age, disability) %>%
+  mutate(
+    total_appalachia_sex_age_disability = sum(estimate),
+    prop = (total_appalachia_sex_age_disability / total_appalachia_sex_age)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With an Ambulatory Difficulty") %>%
+  select(appalachia, sex, age, disability, prop) %>%
+  distinct() -> tabd
+  
+tabd %>%
+  select(1, 2, 3, 5) %>%
+  group_by(appalachia, sex) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population With an Ambulatory Difficulty, by Appalachian Residence Status, Gender, and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "Gender",  "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+:::
+
+
+## Self-care Difficulty at the State-level
+
+::: {.panel-tabset}
+
+### State Overall
+
+```{r }
+
+get_acs(
+  geography = "state",
+  table = "B18106",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> B18106_state
+
+B18106_state %>%
+  mutate(
+    sex = case_when(
+      grepl("Male", label) ~ "Male",
+      grepl("Female", label) ~ "Female"
+      ),
+    disability = case_when(
+      grepl("With a self-care difficulty", label) ~ "With a Self-care Difficulty",
+      grepl("No self-care difficulty", label) ~ "No Self-care Difficulty"
+      ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|!!Male:|!!Male:!!|!!Female:|!!Female:!!|:!!No self-care difficulty|:!!With a self-care difficulty|!!|:"
+      )
+    ) %>%
+  filter(
+    !is.na(sex),
+    !is.na(disability)
+    ) -> taB18106_df 
+
+taB18106_df %>%
+  group_by(NAME) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  mutate(
+    prop = (total_vision / total)
+    ) %>%
+  select(NAME, disability, total, total_vision, prop) %>%
+  distinct() %>%
+  select(1, 2, 3, 5) %>%
+  group_by(
+    NAME, total
+    ) %>%
+  pivot_wider(
+    names_from = disability,
+    values_from = prop
+    ) -> tab_vision
+
+```
+
+```{r }
+
+tab_vision %>%
+  ungroup() %>%
+  select(1, 3) %>%
+  arrange( - `With a Self-care Difficulty`) %>%
+   DT::datatable(
+    ., 
+    caption = "Percent of State Population with a Self-care Difficulty",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "% with a Self-care Difficulty"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('With a Self-care Difficulty'), 1)   
+
+```
+
+### State by Gender
+
+
+```{r}
+
+taB18106_df %>%
+  sf::st_drop_geometry() %>%
+  group_by(NAME, sex) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+    ) %>%
+  filter(disability == "With a Self-care Difficulty") %>%
+  select(1, 2, 6) %>%
+  group_by(
+    NAME
+    ) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = prop
+    ) -> tab_vision
+
+tab_vision %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population With a Self-care Difficulty, by Gender",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "Male", "Female"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Male', 'Female'), 1)   
+
+```
+
+### State by Age
+
+
+```{r}
+
+taB18106_df %>%
+  sf::st_drop_geometry() %>%
+  group_by(NAME, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, age, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, age, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+    ) %>%
+  filter(disability == "With a Self-care Difficulty") %>%
+  select(1, 2, 6) %>%
+  group_by(
+    NAME
+    ) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+    ) -> tab_vision
+
+tab_vision %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population With a Self-care Difficulty, by Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1)   
+
+```
+
+### State by Gender and Age-group
+
+```{r }
+
+taB18106_df %>%
+  group_by(NAME, sex, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, age, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, age, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+    ) %>%
+  select(1, 2, 3, 4, 7) %>%
+  group_by(NAME, sex, disability) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+    ) -> tab_vision3
+
+tab_vision3 %>%
+  ungroup() %>%
+  filter(disability == "With a Self-care Difficulty") %>%
+  select(1, 2, 4:8) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population With a Self-care Difficulty, by Gender and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "Gender", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+:::
+
+## Self-care Difficulty at the County-level
+
+::: {.panel-tabset}
+
+```{r }
+
+get_acs(
+  geography = "county",
+  state = "Ohio",
+  table = "B18106",
+  year = 2020
+) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> B18106_county
+
+B18106_county %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio"),
+    sex = case_when(
+      grepl("Male", label) ~ "Male",
+      grepl("Female", label) ~ "Female"
+    ),
+    disability = case_when(
+      grepl("With a self-care difficulty", label) ~ "With a Self-care Difficulty",
+      grepl("No self-care difficulty", label) ~ "No Self-care Difficulty"
+    ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|!!Male:|!!Male:!!|!!Female:|!!Female:!!|:!!No self-care difficulty|:!!With a self-care difficulty|!!|:"
+    )
+  ) %>%
+  filter(
+    !is.na(sex),
+    !is.na(disability)
+  ) -> taB18106_df_c 
+
+taB18106_df_c %>%
+  group_by(NAME) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+  ) %>%
+  select(1, 2, 3, 5) %>%
+  group_by(
+    NAME, total
+  ) %>%
+  pivot_wider(
+    names_from = disability,
+    values_from = prop
+  ) -> tab_vison_c
+
+```
+
+### County Overall
+
+```{r}
+
+tab_vison_c %>%
+  ungroup() %>%
+  select(1, 3) %>%
+  arrange(- `With a Self-care Difficulty`) %>%
+   DT::datatable(
+    ., 
+    caption = "Percent of County Population With a Self-care Difficulty",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "% With a Self-care Difficulty"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('With a Self-care Difficulty'), 1)   
+
+```
+
+```{r}
+
+taB18106_df_c %>%
+  group_by(NAME, sex) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+  ) %>%
+  select(1, 2, 3, 6) %>%
+  group_by(
+    NAME, disability
+  ) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = prop
+  ) %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio")
+  ) -> tab_vison_c2
+
+```
+
+### County by Gender
+
+```{r}
+
+tab_vison_c2 %>%
+  ungroup() %>%
+  filter(disability == "With a Self-care Difficulty") %>%
+  select(1, 3, 4) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population With a Self-care Difficulty, by Gender",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "Male", "Female"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Male', 'Female'), 1) 
+
+```
+
+### County by Age-group 
+
+```{r}
+
+taB18106_df_c %>%
+  group_by(NAME, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, age, disability) %>%
+  mutate(
+    total_disabled = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, age, disability, total, total_disabled) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_disabled / total)
+  ) %>%
+  filter(disability == "With a Self-care Difficulty") %>%
+  select(NAME, age, prop) %>%
+  group_by(
+    NAME
+  ) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) -> tab_vision_c3
+
+```
+
+```{r}
+
+tab_vision_c3 %>%
+    ungroup() %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population With a Self-care Difficulty, by Gender and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1)
+```
+
+
+### County by Gender and Age-group
+
+```{r}
+
+taB18106_df_c %>%
+  group_by(NAME, sex, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, age, disability) %>%
+  mutate(
+    total_hearing = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, age, disability, total, total_hearing) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_hearing / total)
+  ) %>%
+  filter(disability == "With a Self-care Difficulty") %>%
+  select(1, 2, 3, 7) %>%
+  group_by(
+    NAME, sex
+  ) %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio")
+  ) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) -> tab_vision_c4
+
+```
+
+```{r}
+
+tab_vision_c4 %>%
+  ungroup() %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population With a Self-care Difficulty, by Gender and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "Gender", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+:::
+
+## Self-care Difficulty in Appalachia vs Rest of Ohio
+
+::: {.panel-tabset}
+
+### Overall
+
+```{r}
+
+taB18106_df_c %>%
+  mutate(
+    appalachia = case_when(
+      NAME %in% appalachian.ohio ~ "Appalachia",
+      TRUE ~ "Rest of Ohio"
+    )
+  ) -> mydf
+
+mydf %>%
+  group_by(appalachia) %>%
+  mutate(
+    total_appalachia = sum(estimate) 
+  ) %>%
+  group_by(appalachia, disability) %>%
+  mutate(
+    total_appalachia_disability = sum(estimate),
+    prop = (total_appalachia_disability / total_appalachia)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With a Self-care Difficulty") %>%
+  select(appalachia, disability, prop) %>%
+  distinct() -> taba
+  
+taba %>%
+  select(1, 3) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population With a Self-care Difficulty, by Appalachian Residence Status",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "% with a Self-care Difficulty"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('prop'), 1) 
+
+```
+
+### By Gender
+
+```{r}
+
+mydf %>%
+  group_by(appalachia, sex) %>%
+  mutate(
+    total_appalachia_sex = sum(estimate) 
+  ) %>%
+  group_by(appalachia, sex, disability) %>%
+  mutate(
+    total_appalachia_sex_disability = sum(estimate),
+    prop = (total_appalachia_sex_disability / total_appalachia_sex)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With a Self-care Difficulty") %>%
+  select(appalachia, sex, disability, prop) %>%
+  distinct() -> tabb
+  
+tabb %>%
+  select(1, 2, 4) %>%
+  group_by(appalachia) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population With a Self-care Difficulty, by Appalachian Residence Status and Gender",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "Male", "Female"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Male', 'Female'), 1) 
+
+```
+
+### By Age-group
+
+```{r}
+
+mydf %>%
+  group_by(appalachia, age) %>%
+  mutate(
+    total_appalachia_age = sum(estimate) 
+  ) %>%
+  group_by(appalachia, age, disability) %>%
+  mutate(
+    total_appalachia_age_disability = sum(estimate),
+    prop = (total_appalachia_age_disability / total_appalachia_age)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With a Self-care Difficulty") %>%
+  select(appalachia, age, disability, prop) %>%
+  distinct() -> tabc
+  
+tabc %>%
+  select(1, 2, 4) %>%
+  group_by(appalachia) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population With a Self-care Difficulty, by Appalachian Residence Status and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+
+### By Gender and Age-group
+
+```{r}
+
+mydf %>%
+  group_by(appalachia, sex, age) %>%
+  mutate(
+    total_appalachia_sex_age = sum(estimate) 
+  ) %>%
+  group_by(appalachia, sex, age, disability) %>%
+  mutate(
+    total_appalachia_sex_age_disability = sum(estimate),
+    prop = (total_appalachia_sex_age_disability / total_appalachia_sex_age)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With a Self-care Difficulty") %>%
+  select(appalachia, sex, age, disability, prop) %>%
+  distinct() -> tabd
+  
+tabd %>%
+  select(1, 2, 3, 5) %>%
+  group_by(appalachia, sex) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population With a Self-care Difficulty, by Appalachian Residence Status, Gender, and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "Gender",  "% 5-17", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('5 to 17 years', '18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+:::
+
+## Independent Living Difficulty at the State-level
+
+::: {.panel-tabset}
+
+### State Overall
+
+```{r }
+
+get_acs(
+  geography = "state",
+  table = "B18107",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> B18107_state
+
+B18107_state %>%
+  mutate(
+    sex = case_when(
+      grepl("Male", label) ~ "Male",
+      grepl("Female", label) ~ "Female"
+      ),
+    disability = case_when(
+      grepl("With an independent living difficulty", label) ~ "With an Independent Living Difficulty",
+      grepl("No independent living difficulty", label) ~ "No Independent Living Difficulty"
+      ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|!!Male:|!!Male:!!|!!Female:|!!Female:!!|:!!No independent living difficulty|:!!With an independent living difficulty|!!|:"
+      )
+    ) %>%
+  filter(
+    !is.na(sex),
+    !is.na(disability)
+    ) -> taB18107_df 
+
+taB18107_df %>%
+  group_by(NAME) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  mutate(
+    prop = (total_vision / total)
+    ) %>%
+  select(NAME, disability, total, total_vision, prop) %>%
+  distinct() %>%
+  select(1, 2, 3, 5) %>%
+  group_by(
+    NAME, total
+    ) %>%
+  pivot_wider(
+    names_from = disability,
+    values_from = prop
+    ) -> tab_vision
+
+```
+
+```{r }
+
+tab_vision %>%
+  ungroup() %>%
+  select(1, 3) %>%
+  arrange( - `With an Independent Living Difficulty`) %>%
+   DT::datatable(
+    ., 
+    caption = "Percent of State Population with an Independent Living Difficulty",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "% with an Independent Living Difficulty"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('With an Independent Living Difficulty'), 1)   
+
+```
+
+### State by Gender
+
+
+```{r}
+
+taB18107_df %>%
+  sf::st_drop_geometry() %>%
+  group_by(NAME, sex) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+    ) %>%
+  filter(disability == "With an Independent Living Difficulty") %>%
+  select(1, 2, 6) %>%
+  group_by(
+    NAME
+    ) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = prop
+    ) -> tab_vision
+
+tab_vision %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population With an Independent Living Difficulty, by Gender",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "Male", "Female"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Male', 'Female'), 1)   
+
+```
+
+### State by Age
+
+
+```{r}
+
+taB18107_df %>%
+  sf::st_drop_geometry() %>%
+  group_by(NAME, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, age, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, age, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+    ) %>%
+  filter(disability == "With an Independent Living Difficulty") %>%
+  select(1, 2, 6) %>%
+  group_by(
+    NAME
+    ) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+    ) -> tab_vision
+
+tab_vision %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population With an Independent Living Difficulty, by Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1)   
+
+```
+
+### State by Gender and Age-group
+
+```{r }
+
+taB18107_df %>%
+  group_by(NAME, sex, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, age, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, age, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+    ) %>%
+  select(1, 2, 3, 4, 7) %>%
+  group_by(NAME, sex, disability) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+    ) -> tab_vision3
+
+tab_vision3 %>%
+  ungroup() %>%
+  filter(disability == "With an Independent Living Difficulty") %>%
+  select(1, 2, 4:7) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of State Population With an Independent Living Difficulty, by Gender and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "Gender", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+:::
+
+## Independent Living Difficulty at the County-level
+
+::: {.panel-tabset}
+
+```{r }
+
+get_acs(
+  geography = "county",
+  state = "Ohio",
+  table = "B18107",
+  year = 2020
+) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> B18107_county
+
+B18107_county %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio"),
+    sex = case_when(
+      grepl("Male", label) ~ "Male",
+      grepl("Female", label) ~ "Female"
+    ),
+    disability = case_when(
+      grepl("With an independent living difficulty", label) ~ "With an Independent Living Difficulty",
+      grepl("No independent living difficulty", label) ~ "No Independent Living Difficulty"
+    ),
+    age = stringr::str_remove_all(
+      label,
+      "Estimate!!Total:|!!Male:|!!Male:!!|!!Female:|!!Female:!!|:!!No independent living difficulty|:!!With an independent living difficulty|!!|:"
+    )
+  ) %>%
+  filter(
+    !is.na(sex),
+    !is.na(disability)
+  ) -> taB18107_df_c 
+
+taB18107_df_c %>%
+  group_by(NAME) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+  ) %>%
+  select(1, 2, 3, 5) %>%
+  group_by(
+    NAME, total
+  ) %>%
+  pivot_wider(
+    names_from = disability,
+    values_from = prop
+  ) -> tab_vison_c
+
+```
+
+### County Overall
+
+```{r}
+
+tab_vison_c %>%
+  ungroup() %>%
+  select(1, 3) %>%
+  arrange(- `With an Independent Living Difficulty`) %>%
+   DT::datatable(
+    ., 
+    caption = "Percent of County Population With an Independent Living Difficulty",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "% With an Independent Living Difficulty"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('With an Independent Living Difficulty'), 1)   
+
+```
+
+```{r}
+
+taB18107_df_c %>%
+  group_by(NAME, sex) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, disability) %>%
+  mutate(
+    total_vision = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, disability, total, total_vision) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_vision / total)
+  ) %>%
+  select(1, 2, 3, 6) %>%
+  group_by(
+    NAME, disability
+  ) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = prop
+  ) %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio")
+  ) -> tab_vison_c2
+
+```
+
+### County by Gender
+
+```{r}
+
+tab_vison_c2 %>%
+  ungroup() %>%
+  filter(disability == "With an Independent Living Difficulty") %>%
+  select(1, 3, 4) %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population With an Independent Living Difficulty, by Gender",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "Male", "Female"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Male', 'Female'), 1) 
+
+```
+
+### County by Age-group 
+
+```{r}
+
+taB18107_df_c %>%
+  group_by(NAME, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, age, disability) %>%
+  mutate(
+    total_disabled = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, age, disability, total, total_disabled) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_disabled / total)
+  ) %>%
+  filter(disability == "With an Independent Living Difficulty") %>%
+  select(NAME, age, prop) %>%
+  group_by(
+    NAME
+  ) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) -> tab_vision_c3
+
+```
+
+```{r}
+
+tab_vision_c3 %>%
+    ungroup() %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population With an Independent Living Difficulty, by Gender and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1)
+```
+
+
+### County by Gender and Age-group
+
+```{r}
+
+taB18107_df_c %>%
+  group_by(NAME, sex, age) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(NAME, sex, age, disability) %>%
+  mutate(
+    total_hearing = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(NAME, sex, age, disability, total, total_hearing) %>%
+  distinct() %>%
+  mutate(
+    prop = (total_hearing / total)
+  ) %>%
+  filter(disability == "With an Independent Living Difficulty") %>%
+  select(1, 2, 3, 7) %>%
+  group_by(
+    NAME, sex
+  ) %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio")
+  ) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) -> tab_vision_c4
+
+```
+
+```{r}
+
+tab_vision_c4 %>%
+  ungroup() %>%
+  DT::datatable(
+    ., 
+    caption = "Percent of County Population With an Independent Living Difficulty, by Gender and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "Gender", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+:::
+
+## Independent Living Difficulty in Appalachia vs Rest of Ohio
+
+::: {.panel-tabset}
+
+### Overall
+
+```{r}
+
+taB18107_df_c %>%
+  mutate(
+    appalachia = case_when(
+      NAME %in% appalachian.ohio ~ "Appalachia",
+      TRUE ~ "Rest of Ohio"
+    )
+  ) -> mydf
+
+mydf %>%
+  group_by(appalachia) %>%
+  mutate(
+    total_appalachia = sum(estimate) 
+  ) %>%
+  group_by(appalachia, disability) %>%
+  mutate(
+    total_appalachia_disability = sum(estimate),
+    prop = (total_appalachia_disability / total_appalachia)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With an Independent Living Difficulty") %>%
+  select(appalachia, disability, prop) %>%
+  distinct() -> taba
+  
+taba %>%
+  select(1, 3) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population With an Independent Living Difficulty, by Appalachian Residence Status",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "% with an Independent Living Difficulty"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('prop'), 1) 
+
+```
+
+### By Gender
+
+```{r}
+
+mydf %>%
+  group_by(appalachia, sex) %>%
+  mutate(
+    total_appalachia_sex = sum(estimate) 
+  ) %>%
+  group_by(appalachia, sex, disability) %>%
+  mutate(
+    total_appalachia_sex_disability = sum(estimate),
+    prop = (total_appalachia_sex_disability / total_appalachia_sex)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With an Independent Living Difficulty") %>%
+  select(appalachia, sex, disability, prop) %>%
+  distinct() -> tabb
+  
+tabb %>%
+  select(1, 2, 4) %>%
+  group_by(appalachia) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population With an Independent Living Difficulty, by Appalachian Residence Status and Gender",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "Male", "Female"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Male', 'Female'), 1) 
+
+```
+
+### By Age-group
+
+```{r}
+
+mydf %>%
+  group_by(appalachia, age) %>%
+  mutate(
+    total_appalachia_age = sum(estimate) 
+  ) %>%
+  group_by(appalachia, age, disability) %>%
+  mutate(
+    total_appalachia_age_disability = sum(estimate),
+    prop = (total_appalachia_age_disability / total_appalachia_age)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With an Independent Living Difficulty") %>%
+  select(appalachia, age, disability, prop) %>%
+  distinct() -> tabc
+  
+tabc %>%
+  select(1, 2, 4) %>%
+  group_by(appalachia) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population With an Independent Living Difficulty, by Appalachian Residence Status and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+
+### By Gender and Age-group
+
+```{r}
+
+mydf %>%
+  group_by(appalachia, sex, age) %>%
+  mutate(
+    total_appalachia_sex_age = sum(estimate) 
+  ) %>%
+  group_by(appalachia, sex, age, disability) %>%
+  mutate(
+    total_appalachia_sex_age_disability = sum(estimate),
+    prop = (total_appalachia_sex_age_disability / total_appalachia_sex_age)
+  ) %>%
+  ungroup() %>%
+  filter(disability == "With an Independent Living Difficulty") %>%
+  select(appalachia, sex, age, disability, prop) %>%
+  distinct() -> tabd
+  
+tabd %>%
+  select(1, 2, 3, 5) %>%
+  group_by(appalachia, sex) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population With an Independent Living Difficulty, by Appalachian Residence Status, Gender, and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", "Gender",  "%18-34", "% 35-64", "%65 - 74", "% 75+"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('18 to 34 years', '35 to 64 years', '65 to 74 years', '75 years and over'), 1) 
+
+```
+
+:::
+
+# Health Insurance Status at the State-level
+
+When it comes to insurance status of those with a disability, Ohio does well in comparison to other states. Specifically, 4.1% of Ohioans with a disability lack health insurance, versus Oklahoma with 11.7% (the worst) and Massachusetts with 1.6% (the best). However, these aggregate estimates mask significant variation across age-groups: 3.1% of those under 19 years of age and with a disability lack health insurance versus 7.1% of 19-64 year-olds with a disability. 
+
+```{r }
+get_acs(
+  geography = "state",
+  table = "B18135",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18135_state
+
+b18135_state %>%
+  mutate(
+    disability = case_when(
+      grepl("With a disability", label) ~ "With a Disability",
+      grepl("No disability", label) ~ "No Disability"
+      ),
+    age = case_when(
+      grepl("Under 19 years", label) ~ "Under 19 years",
+      grepl("19 to 64 years", label) ~ "19 to 64 years",
+      grepl("65 years and over", label) ~ "65 years and over"
+      ),
+    insurance = case_when(
+      grepl("!!With a disability:!!With health insurance coverage:!!With private health insurance coverage", label) ~ "Privately Insured",
+      grepl("!!With a disability:!!With health insurance coverage:!!With public health coverage", label) ~ "Publicly Insured",
+      grepl("!!With a disability:!!With health insurance coverage:", label) ~ "Insured",
+      grepl("!!With a disability:!!No health insurance coverage", label) ~ "Not Insured"
+      )
+    ) %>%
+  filter(
+    !is.na(disability),
+    !is.na(age), 
+    insurance %in% c("Insured", "Not Insured")
+  ) -> tab18135_df 
+
+tab18135_df %>%
+  group_by(NAME, disability) %>%
+  mutate(
+    total = sum(estimate)
+    ) %>%
+  group_by(NAME, disability, insurance) %>%
+  mutate(
+    total_insured = sum(estimate)
+    ) %>%
+  distinct(NAME, disability, insurance, total, total_insured) %>%  
+  mutate(
+    prop = (total_insured / total)
+    ) %>%
+  group_by(NAME, disability) %>%
+  select(-total_insured, -total) %>%
+  pivot_wider(
+    names_from = insurance,
+    values_from = prop
+  ) -> tab18135_01
+
+tab18135_df %>%
+  group_by(NAME, disability, age) %>%
+  mutate(
+    total = sum(estimate)
+    ) %>%
+  group_by(NAME, disability, age, insurance) %>%
+  mutate(
+    total_insured = sum(estimate)
+    ) %>%
+  distinct(NAME, disability, age, insurance, total, total_insured) %>%  
+  mutate(
+    prop = (total_insured / total)
+    ) %>%
+  group_by(NAME, disability, age) %>%
+  select(-total_insured, -total) %>%
+  pivot_wider(
+    names_from = insurance,
+    values_from = prop
+  ) -> tab18135_02
+```
+
+::: {.panel-tabset}
+
+### State Overall
+
+```{r}
+
+tab18135_01 %>%
+  ungroup() %>%
+  select(1, 4) %>%
+  arrange( - `Not Insured`) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population With a Disability but Without Health Insurance",
+    rownames = FALSE, 
+    colnames = c(
+      "State", "% Not Insured"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Not Insured'), 1) 
+
+```
+
+### State by Age-group
+
+```{r}
+
+tab18135_02 %>%
+  ungroup() %>%
+  select(1, 3, 5) %>%
+  group_by(
+    NAME
+  ) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = `Not Insured`
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Population With a Disability but Without Health Insurance, by Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "State", 'Under 19 years', '19 to 64 years', '65 years and over'
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Under 19 years', '19 to 64 years', '65 years and over'), 1) 
+```
+
+:::
+
+## Health Insurance Status at the County-level
+
+::: {.panel-tabset}
+
+### County Overall
+
+```{r}
+
+get_acs(
+  geography = "county",
+  state = "OH",
+  table = "B18135",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18135_county
+
+b18135_county %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio"),
+    disability = case_when(
+      grepl("With a disability", label) ~ "With a Disability",
+      grepl("No disability", label) ~ "No Disability"
+      ),
+    age = case_when(
+      grepl("Under 19 years", label) ~ "Under 19 years",
+      grepl("19 to 64 years", label) ~ "19 to 64 years",
+      grepl("65 years and over", label) ~ "65 years and over"
+      ),
+    insurance = case_when(
+      grepl("!!With a disability:!!With health insurance coverage:!!With private health insurance coverage", label) ~ "Privately Insured",
+      grepl("!!With a disability:!!With health insurance coverage:!!With public health coverage", label) ~ "Publicly Insured",
+      grepl("!!With a disability:!!With health insurance coverage:", label) ~ "Insured",
+      grepl("!!With a disability:!!No health insurance coverage", label) ~ "Not Insured"
+      )
+    ) %>%
+  filter(
+    !is.na(disability),
+    !is.na(age), 
+    insurance %in% c("Insured", "Not Insured")
+  ) -> tab18135_df 
+
+tab18135_df %>%
+  group_by(NAME, disability) %>%
+  mutate(
+    total = sum(estimate)
+    ) %>%
+  group_by(NAME, disability, insurance) %>%
+  mutate(
+    total_insured = sum(estimate)
+    ) %>%
+  distinct(NAME, disability, insurance, total, total_insured) %>%  
+  mutate(
+    prop = (total_insured / total)
+    ) %>%
+  group_by(NAME) %>%
+  select(-total_insured, -total) %>%
+  pivot_wider(
+    names_from = insurance,
+    values_from = prop
+  ) -> tab18135_01
+
+tab18135_df %>%
+  group_by(NAME, age) %>%
+  mutate(
+    total = sum(estimate)
+    ) %>%
+  group_by(NAME, age, insurance) %>%
+  mutate(
+    total_insured = sum(estimate)
+    ) %>%
+  distinct(NAME, age, insurance, total, total_insured) %>%  
+  mutate(
+    prop = (total_insured / total)
+    ) %>%
+  group_by(NAME, age, total) %>%
+  select(-total_insured) %>%
+  pivot_wider(
+    names_from = insurance,
+    values_from = prop
+  ) -> tab18135_02
+
+```
+
+```{r}
+
+tab18135_01 %>%
+  ungroup() %>%
+  select(1, 4) %>%
+  arrange( - `Not Insured`) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of County Population With a Disability but Without Health Insurance",
+    rownames = FALSE, 
+    colnames = c(
+      "County", "% Not Insured"
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Not Insured'), 1) 
+
+```
+
+
+### County by Age-group
+
+```{r}
+
+tab18135_02 %>%
+  ungroup() %>%
+  select(1, 2, 5) %>%
+  group_by(
+    NAME
+  ) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = `Not Insured`
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of County Population With a Disability but Without Health Insurance, by Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "County", 'Under 19 years', '19 to 64 years', '65 years and over'
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Under 19 years', '19 to 64 years', '65 years and over'), 1) 
+
+```
+
+
+## Appalachia versus Rest of Ohio
+
+### Overall
+
+```{r}
+
+tab18135_df %>%
+  mutate(
+    appalachia = case_when(
+      NAME %in% appalachian.ohio ~ "Appalachia",
+      TRUE ~ "Rest of Ohio"
+      )
+    ) -> tab001
+
+tab001 %>%
+  group_by(appalachia) %>%
+  mutate(
+    total = sum(estimate) 
+  ) %>%
+  group_by(appalachia, disability, insurance) %>%  
+  mutate(
+    total_insurance_disability = sum(estimate)
+  ) -> tab001
+
+tab001 %>%
+  ungroup() %>%
+  select(
+    appalachia, disability, insurance, total, total_insurance_disability
+  ) %>%
+  distinct() %>%
+  mutate(
+    prop = total_insurance_disability / total
+  ) -> tab002
+
+tab002 %>%
+  filter(disability == "With a Disability") %>%
+  select(1, 3, 6) %>%
+  group_by(appalachia) %>%
+  pivot_wider(
+    names_from = insurance,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Resident Population With a Disability but Without Health Insurance, by Appalachian Status",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", 'Insured', 'Uninsured'
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Insured', 'Not Insured'), 1) 
+  
+
+```
+
+
+### By Age-group
+
+```{r}
+tab18135_df %>%
+  mutate(
+    appalachia = case_when(
+      NAME %in% appalachian.ohio ~ "Appalachia",
+      TRUE ~ "Rest of Ohio"
+      )
+    ) %>%
+  group_by(appalachia, age) %>%
+  mutate(
+    total = sum(estimate) 
+  ) %>%
+  group_by(appalachia, age, disability, insurance) %>%  
+  mutate(
+    total_insurance_disability = sum(estimate)
+  ) -> tab003
+
+tab001 %>%
+  ungroup() %>%
+  select(
+    appalachia, age, disability, insurance, total, total_insurance_disability
+  ) %>%
+  distinct() %>%
+  mutate(
+    prop = total_insurance_disability / total
+  ) -> tab004
+
+tab004 %>%
+  filter(
+    disability == "With a Disability",
+    insurance == "Not Insured"
+    ) %>%
+  select(1, 2, 7) %>%
+  group_by(appalachia) %>%
+  pivot_wider(
+    names_from = age,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Resident Population With a Disability but Without Health Insurance, by Appalachian Status and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", 'Under 19 years', '19 to 64 years', '65 years and over'
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(c('Under 19 years', '19 to 64 years', '65 years and over'), 1) 
+  
+```
+
+
+:::
+
+
+# Median Earnings
+
+Median earnings (in 2020 inflation-adjusted dollars) of the U.S. civilian non-institutionalized population ages 16 and over with a disability during the previous 12 months from 2016-2020 are tabulated below, first for states and then for counties. 
+
+```{r }
+get_acs(
+  geography = "state",
+  table = "B18140",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18140_state
+
+b18140_state %>%
+  mutate(
+    disability = case_when(
+      grepl("With a disability", label) ~ "With a Disability",
+      grepl("No disability", label) ~ "No Disability"
+      ),
+    sex = case_when(
+      grepl("Male", label) ~ "Male",
+      grepl("Female", label) ~ "Female"
+      )
+    ) -> tab18140_df 
+
+tab18140_df$sex = ifelse(
+  is.na(tab18140_df$sex) & !is.na(tab18140_df$disability), 
+  paste("Total", tab18140_df$disability, sep = " "), 
+  tab18140_df$sex
+  )
+
+tab18140_df$sex = ifelse(
+  is.na(tab18140_df$sex) & is.na(tab18140_df$disability), 
+  "All", 
+  tab18140_df$sex
+  )
+
+tab18140_df$disability = ifelse(
+  is.na(tab18140_df$disability), 
+  "All", 
+  tab18140_df$disability
+  )
+
+tab18140_df %>%
+  mutate(
+    disabled = case_when(
+      sex == "All" ~ "All",
+      sex == "Total With a Disability" ~ "Total with a disability",
+      sex == "Total No Disability" ~ "Total No disability",
+      sex == "Male" ~ paste(sex, disability, sep = " "),
+      sex == "Female" ~ paste(sex, disability, sep = " ")
+    )
+  ) -> tab18140_df
+
+tab18140_df %>%
+  select(
+    NAME, estimate, disabled
+    ) -> tab18140
+
+tab18140 %>%
+  ungroup() %>%
+  group_by(NAME) %>%
+  pivot_wider(
+    names_from = disabled,
+    values_from = estimate
+  ) -> tab18140_01
+
+```
+
+```{r}
+
+tab18140_01 %>%
+    DT::datatable(
+    ., 
+    caption = "Median Earnings, by Disability Status and Gender",
+    rownames = FALSE, 
+    colnames = c(
+      "State", 'Total w/ Disability', 'Male w/ Disability', 'Female w/ Disability', 'Total No Disability', 'Male No Disability', 'Female No Disability'
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) 
+```
+
+
+And then the same earnings but for the counties. 
+
+```{r }
+get_acs(
+  geography = "county",
+  state = "OH",
+  table = "B18140",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b18140_county
+
+b18140_county %>%
+  mutate(
+    disability = case_when(
+      grepl("With a disability", label) ~ "With a Disability",
+      grepl("No disability", label) ~ "No Disability"
+      ),
+    sex = case_when(
+      grepl("Male", label) ~ "Male",
+      grepl("Female", label) ~ "Female"
+      )
+    ) -> tab18140_df 
+
+tab18140_df$sex = ifelse(
+  is.na(tab18140_df$sex) & !is.na(tab18140_df$disability), 
+  paste("Total", tab18140_df$disability, sep = " "), 
+  tab18140_df$sex
+  )
+
+tab18140_df$sex = ifelse(
+  is.na(tab18140_df$sex) & is.na(tab18140_df$disability), 
+  "All", 
+  tab18140_df$sex
+  )
+
+tab18140_df$disability = ifelse(
+  is.na(tab18140_df$disability), 
+  "All", 
+  tab18140_df$disability
+  )
+
+tab18140_df %>%
+  mutate(
+    disabled = case_when(
+      sex == "All" ~ "All",
+      sex == "Total With a Disability" ~ "Total with a disability",
+      sex == "Total No Disability" ~ "Total No disability",
+      sex == "Male" ~ paste(sex, disability, sep = " "),
+      sex == "Female" ~ paste(sex, disability, sep = " ")
+    )
+  ) -> tab18140_df
+
+tab18140_df %>%
+  select(
+    NAME, estimate, disabled
+    ) -> tab18140
+
+tab18140 %>%
+  ungroup() %>%
+  group_by(NAME) %>%
+  pivot_wider(
+    names_from = disabled,
+    values_from = estimate
+  ) -> tab18140_01
+
+```
+
+```{r}
+
+tab18140_01 %>%
+  mutate(NAME = stringr::str_remove_all(NAME, " County, Ohio")) %>%
+    DT::datatable(
+    ., 
+    caption = "Median Earnings, by Disability Status and Gender",
+    rownames = FALSE, 
+    colnames = c(
+      "County", 'Total w/ Disability', 'Male w/ Disability', 'Female w/ Disability', 'Total No Disability', 'Male No Disability', 'Female No Disability'
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) 
+```
+
+
+# Receipt of Food Stamps/SNAP 
+
+Of the 4,717,226 households in Ohio, some 12.6% (593,108 households) receive Food Stamps/SNAP, and 51.1% of the households that receive Food Stamps/SNAP have one or more persons with a disability. As a comparison, consider that only 23.6% of households that do not receive Food Stamps/SNAP have one or more persons with a disability.  
+
+```{r }
+get_acs(
+  geography = "state",
+  table = "B22010",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b22010_state
+
+b22010_state %>%
+  mutate(
+    snap = case_when(
+      grepl("Estimate!!Total:!!Household received Food Stamps/SNAP in the past 12 months:", label) ~ "Received SNAP",
+      grepl("Estimate!!Total:!!Household received Food Stamps/SNAP in the past 12 months:!!Households with 1 or more persons with a disability", label) ~ "Received SNAP 1+ Disability",
+      grepl("Estimate!!Total:!!Household received Food Stamps/SNAP in the past 12 months:!!Households with no persons with a disability", label) ~ "Received SNAP 0 Disability",
+      grepl("Estimate!!Total:!!Household did not receive Food Stamps/SNAP in the past 12 months:", label) ~ "Did not Receive SNAP",
+      grepl("Estimate!!Total:!!Household did not receive Food Stamps/SNAP in the past 12 months:!!Households with 1 or more persons with a disability", label) ~ "Did not Receive SNAP 1+ Disability",
+      grepl("Estimate!!Total:!!Household did not receive Food Stamps/SNAP in the past 12 months:!!Households with no persons with a disability", label) ~ "Did not Receive SNAP 0 Disability",
+      grepl("Estimate!!Total:", label) ~ "All"
+      ),
+    disability = case_when(
+      grepl("1 or more", label) ~ "1 or more persons",
+      grepl("no persons", label) ~ "0 persons"
+      )
+    ) -> b22010_state
+
+b22010_state %>%
+  filter(
+    !is.na(disability)
+    ) %>%
+  select(
+    2, 4, 8:9
+  ) -> b22010_df 
+
+b22010_df %>%
+  group_by(NAME, snap) %>%
+  mutate(
+    total_snap = sum(estimate)
+  ) %>%
+  mutate(
+    prop_disabled = (estimate / total_snap)
+  ) -> fs_snap
+
+```
+
+```{r}
+
+fs_snap %>%
+  ungroup() %>%
+  filter(disability != "0 persons") %>%
+  select(1, 3, 6) %>%
+  group_by(NAME) %>%
+  pivot_wider(
+    names_from = snap,
+    values_from = prop_disabled
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of State Households with 1 or more Persons with a Disability, by Food Stamps/SNAP Status",
+    rownames = FALSE, 
+    colnames = c(
+      "State", 'Received SNAP', 'Did not Receive SNAP'
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(., c('Received SNAP', 'Did not Receive SNAP'), 1)
+
+```
+
+And then for the counties. 
+
+```{r }
+get_acs(
+  geography = "county",
+  state = "OH",
+  table = "B22010",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b22010_county
+
+b22010_county %>%
+  mutate(
+    snap = case_when(
+      grepl("Estimate!!Total:!!Household received Food Stamps/SNAP in the past 12 months:", label) ~ "Received SNAP",
+      grepl("Estimate!!Total:!!Household received Food Stamps/SNAP in the past 12 months:!!Households with 1 or more persons with a disability", label) ~ "Received SNAP 1+ Disability",
+      grepl("Estimate!!Total:!!Household received Food Stamps/SNAP in the past 12 months:!!Households with no persons with a disability", label) ~ "Received SNAP 0 Disability",
+      grepl("Estimate!!Total:!!Household did not receive Food Stamps/SNAP in the past 12 months:", label) ~ "Did not Receive SNAP",
+      grepl("Estimate!!Total:!!Household did not receive Food Stamps/SNAP in the past 12 months:!!Households with 1 or more persons with a disability", label) ~ "Did not Receive SNAP 1+ Disability",
+      grepl("Estimate!!Total:!!Household did not receive Food Stamps/SNAP in the past 12 months:!!Households with no persons with a disability", label) ~ "Did not Receive SNAP 0 Disability",
+      grepl("Estimate!!Total:", label) ~ "All"
+      ),
+    disability = case_when(
+      grepl("1 or more", label) ~ "1 or more persons",
+      grepl("no persons", label) ~ "0 persons"
+      )
+    ) -> b22010_county
+
+b22010_county %>%
+  filter(
+    !is.na(disability)
+    ) %>%
+  select(
+    2, 4, 8:9
+  ) -> b22010_df 
+
+b22010_df %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio"),
+    appalachia = case_when(
+      NAME %in% appalachian.ohio ~ "Appalachia",
+      TRUE ~ "Rest of Ohio"
+      )
+    ) -> b22010_df
+  
+b22010_df  %>%
+  ungroup() %>%
+  group_by(NAME) %>%
+  mutate(
+    total_appalachia = sum(estimate)
+  ) %>%
+  group_by(NAME, snap) %>%
+  mutate(
+    total_snap = sum(estimate)
+  ) %>%
+  group_by(NAME, snap, disability) %>%  
+  mutate(
+    total_snap_disability = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    prop_disabled = (total_snap_disability / total_snap)
+  ) -> fs_snap
+
+```
+
+```{r}
+
+fs_snap %>%
+  ungroup() %>%
+  filter(disability != "0 persons") %>%
+  select(1, 3, 9) %>%
+  group_by(NAME) %>%
+  pivot_wider(
+    names_from = snap,
+    values_from = prop_disabled
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of County Households with 1 or more Persons with a Disability, by Food Stamps/SNAP Status",
+    rownames = FALSE, 
+    colnames = c(
+      "State", 'Received SNAP', 'Did not Receive SNAP'
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(., c('Received SNAP', 'Did not Receive SNAP'), 1)
+
+```
+
+What about Appalachia versus the Rest of Ohio?
+
+```{r}
+
+b22010_df  %>%
+  ungroup() %>%
+  group_by(appalachia) %>%
+  mutate(
+    total_appalachia = sum(estimate)
+  ) %>%
+  group_by(appalachia, snap) %>%
+  mutate(
+    total_snap = sum(estimate)
+  ) %>%
+  group_by(appalachia, snap, disability) %>%  
+  mutate(
+    total_snap_disability = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  select(3:8) %>%
+  distinct() -> fs_snap
+
+```
+
+```{r}
+
+fs_snap %>%
+  filter(
+    disability == "1 or more persons"
+  ) %>%
+  mutate(
+    prop_disabled = (total_snap_disability / total_snap)
+  ) %>%
+  ungroup() %>%
+  select(1, 3, 7) %>%
+  group_by(appalachia) %>%
+  pivot_wider(
+    names_from = snap,
+    values_from = prop_disabled
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Households with 1 or more Persons with a Disability, by Appalachian and Food Stamps/SNAP Status",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", 'Received SNAP', 'Did not Receive SNAP'
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(., c('Received SNAP', 'Did not Receive SNAP'), 1)  
+
+```
+
+# Poverty Status of Disabled Ohioans
+
+Some 27.4% of Ohioans 20-64 years of age and living in poverty have a disability, versus 9.8% of similarly aged Ohioans with incomes at or above the poverty line. 
+
+```{r }
+get_acs(
+  geography = "state",
+  table = "B23024",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b23024_state
+
+b23024_state %>%
+  mutate(
+    poverty = case_when(
+      grepl("Income in the past 12 months below poverty level", label) ~ "In Poverty",
+      grepl("Income in the past 12 months at or above poverty level:", label) ~ "Not in Poverty"
+      ),
+    disabled = case_when(
+      grepl("With a disability", label) ~ "Disabled",
+      grepl("No disability", label) ~ "Not Disabled"
+      ),
+    laborforce = case_when(
+      grepl("In labor force", label) ~ "In Labor Force",
+      grepl("Not in labor force", label) ~ "Not in Labor Force"
+      ),
+    civilian = case_when(
+      grepl("Civilian", label) ~ "Civilian",
+      grepl("Armed", label) ~ "Armed Forces"
+      ),
+    employment = case_when(
+      grepl("Employed", label) ~ "Employed",
+      grepl("Unemployed", label) ~ "Unemployed"
+      )
+    ) -> b23024_df
+
+b23024_df %>%
+  ungroup() %>%
+  filter(
+    !is.na(disabled), !is.na(poverty), 
+    is.na(laborforce), is.na(civilian), is.na(employment)
+    ) %>%
+  select(NAME, estimate, poverty, disabled) %>%
+  group_by(NAME, disabled) %>%
+  mutate(
+    total = sum(estimate),
+    prop = estimate / total
+    ) -> pov00
+  
+pov00 %>%
+  filter(poverty == "In Poverty") %>%
+  ungroup() %>%
+  select(
+    1, 4, 6
+  ) %>%
+  group_by(NAME) %>%
+  pivot_wider(
+    names_from = disabled,
+    values_from = prop
+  ) %>% 
+    DT::datatable(
+    ., 
+    caption = "Percent of Disabled/Not Disabled Persons Living in Poverty, by State",
+    rownames = FALSE, 
+    colnames = c(
+      "State", 'Disabled', 'Not Disabled'
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(., c('Disabled', 'Not Disabled'), 1)  
+  
+```
+
+And next for the counties. 
+
+```{r }
+get_acs(
+  geography = "county",
+  state = "OH",
+  table = "B23024",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> b23024_county
+
+b23024_county %>%
+  mutate(
+    poverty = case_when(
+      grepl("Income in the past 12 months below poverty level", label) ~ "In Poverty",
+      grepl("Income in the past 12 months at or above poverty level:", label) ~ "Not in Poverty"
+      ),
+    disabled = case_when(
+      grepl("With a disability", label) ~ "Disabled",
+      grepl("No disability", label) ~ "Not Disabled"
+      ),
+    laborforce = case_when(
+      grepl("In labor force", label) ~ "In Labor Force",
+      grepl("Not in labor force", label) ~ "Not in Labor Force"
+      ),
+    civilian = case_when(
+      grepl("Civilian", label) ~ "Civilian",
+      grepl("Armed", label) ~ "Armed Forces"
+      ),
+    employment = case_when(
+      grepl("Employed", label) ~ "Employed",
+      grepl("Unemployed", label) ~ "Unemployed"
+      )
+    ) -> b23024_df
+
+b23024_df %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio"),
+    appalachia = case_when(
+      NAME %in% appalachian.ohio ~ "Appalachia",
+      TRUE ~ "Rest of Ohio"
+      )
+    ) -> b23024_df
+
+b23024_df %>%
+  ungroup() %>%
+  filter(
+    !is.na(disabled), !is.na(poverty), 
+    is.na(laborforce), is.na(civilian), is.na(employment)
+    ) %>%
+  select(NAME, estimate, poverty, disabled) %>%
+  group_by(NAME, disabled) %>%
+  mutate(
+    total = sum(estimate),
+    prop = estimate / total
+    ) -> pov00
+  
+pov00 %>%
+  filter(poverty == "In Poverty") %>%
+  ungroup() %>%
+  select(
+    1, 4, 6
+  ) %>%
+  group_by(NAME) %>%
+  pivot_wider(
+    names_from = disabled,
+    values_from = prop
+  ) %>% 
+    DT::datatable(
+    ., 
+    caption = "Percent of Disabled/Not Disabled Persons Living in Poverty, by County",
+    rownames = FALSE, 
+    colnames = c(
+      "State", 'Disabled', 'Not Disabled'
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(., c('Disabled', 'Not Disabled'), 1)  
+
+```
+
+What about Appalachia?
+
+```{r}
+
+b23024_df %>%
+  ungroup() %>%
+  filter(
+    !is.na(disabled), !is.na(poverty), 
+    is.na(laborforce), is.na(civilian), is.na(employment)
+    ) %>%
+  select(appalachia, estimate, poverty, disabled) %>%
+  group_by(appalachia) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(appalachia, disabled) %>%
+  mutate(
+    total_disabled = sum(estimate)
+  ) %>%
+  group_by(appalachia, disabled, poverty) %>%
+  mutate(
+    total_disabled_poor = sum(estimate)
+  ) %>%
+  select(
+    appalachia, poverty, disabled, total, 
+    total_disabled, total_disabled_poor
+    ) %>%
+  distinct() -> tab006
+  
+tab006 %>%
+  mutate(
+    prop = total_disabled_poor / total_disabled
+    ) -> tab006
+
+tab006 %>%
+  filter(poverty == "In Poverty") %>%
+  ungroup() %>%
+  select(1, 3, 7) %>%
+  group_by(appalachia) %>%
+  pivot_wider(
+    names_from = disabled,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Disabled/Not Disabled Persons Living in Poverty, by Appalachian Status",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", 'Disabled', 'Not Disabled'
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(., c('Disabled', 'Not Disabled'), 1)  
+  
+
+```
+
+
+
+# Age and Number of Disabilities
+
+```{r}
+get_acs(
+  geography = "state",
+  table = "C18108",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> c18108_state
+
+c18108_state %>%
+  mutate(
+    age = case_when(
+      grepl("Under 18 years", label) ~ "Under 18 years",
+      grepl("18 to 64 years", label) ~ "18 to 64 years",
+      grepl("65 years and over", label) ~ "65 years and over"
+      ),
+    disability = case_when(
+      grepl("With one type of disability", label) ~ "One",
+      grepl("With two or more", label) ~ "Two or more",
+      grepl("No disability", label) ~ "Zero"
+      )
+    ) -> c18108_df
+
+c18108_df %>%
+  filter(
+    !is.na(age),
+    !is.na(disability)
+    ) %>%
+  select(NAME, age, disability, estimate) %>%
+  group_by(NAME, age) %>%
+  mutate(
+    total_age = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    prop = (estimate / total_age)
+  ) %>%
+  select(NAME, age, disability, prop) %>%
+  filter(disability != "Zero") %>%
+  group_by(NAME, age) %>%
+  pivot_wider(
+    names_from = disability,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of State Population with One or Two+ Disabilities, by Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "State", 'Age-group', '1 Disability', '2+ Disability'
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(., c('One', 'Two or more'), 1)  
+
+```
+
+
+And next for the counties. 
+
+```{r}
+get_acs(
+  geography = "county",
+  state = "OH",
+  table = "C18108",
+  year = 2020
+  ) %>%
+  left_join(
+    myvars[, c(1:3)],
+    by = c("variable" = "name")
+  ) -> c18108_county
+
+c18108_county %>%
+  mutate(
+    age = case_when(
+      grepl("Under 18 years", label) ~ "Under 18 years",
+      grepl("18 to 64 years", label) ~ "18 to 64 years",
+      grepl("65 years and over", label) ~ "65 years and over"
+      ),
+    disability = case_when(
+      grepl("With one type of disability", label) ~ "One",
+      grepl("With two or more", label) ~ "Two or more",
+      grepl("No disability", label) ~ "Zero"
+      )
+    ) -> c18108_df
+
+c18108_df %>%
+  filter(
+    !is.na(age),
+    !is.na(disability)
+    ) %>%
+  select(NAME, age, disability, estimate) %>%
+  group_by(NAME, age) %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio"),
+    total_age = sum(estimate)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    prop = (estimate / total_age)
+  ) %>%
+  select(NAME, age, disability, prop) %>%
+  filter(disability != "Zero") %>%
+  group_by(NAME, age) %>%
+  pivot_wider(
+    names_from = disability,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of County Population with One or Two+ Disabilities, by Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "State", 'Age-group', '1 Disability', '2+ Disability'
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(., c('One', 'Two or more'), 1)  
+
+```
+
+And, for the last time, what about Appalachia?
+
+```{r}
+
+c18108_df %>%
+  mutate(
+    NAME = stringr::str_remove_all(NAME, " County, Ohio"),
+    appalachia = case_when(
+      NAME %in% appalachian.ohio ~ "Appalachia",
+      TRUE ~ "Rest of Ohio"
+    )
+  ) %>%
+  ungroup() %>%
+  select(appalachia, age, disability, estimate) %>%
+  filter(!is.na(age) & !is.na(disability)) -> tab007
+
+tab007 %>%
+  group_by(appalachia) %>%
+  mutate(
+    total = sum(estimate)
+  ) %>%
+  group_by(appalachia, age) %>%
+  mutate(
+    total_age = sum(estimate)
+  ) %>%
+  group_by(appalachia, age, disability) %>%
+  mutate(
+    total_age_disability = sum(estimate)
+  ) %>%
+  select(-estimate) %>%
+  distinct() -> tab008
+
+tab008 %>%
+  mutate(
+    prop = total_age_disability / total_age
+  ) -> tab008
+
+tab008 %>%
+  select(
+    1, 2, 3, 7
+  ) %>%
+  filter(disability != "Zero") %>%
+  group_by(appalachia, age) %>%
+  pivot_wider(
+    names_from = disability,
+    values_from = prop
+  ) %>%
+    DT::datatable(
+    ., 
+    caption = "Percent of Resident Population with One or Two+ Disabilities, by Appalachian Status and Age-group",
+    rownames = FALSE, 
+    colnames = c(
+      "Region", 'Age-group', '1 Disability', '2+ Disability'
+      ),
+    extensions = 'Buttons', options = list(
+      dom = 'Bfrtip',
+      buttons = 
+        list(
+          #'copy', 'print', 
+          list(
+            extend = 'collection',
+            buttons = c('csv', 'excel', 'pdf'),
+            text = 'Download'
+            )
+          )
+      )
+    ) %>%
+  DT::formatPercentage(., c('One', 'Two or more'), 1)  
+
+```
+
+
+
