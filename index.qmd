@@ -1406,9 +1406,6 @@ tab18102_df %>%
   group_by(
     NAME, total
     ) %>%
-  mutate(
-    prop = round(prop * 100, digits = 1)
-  ) %>%
   pivot_wider(
     names_from = disability,
     values_from = prop
