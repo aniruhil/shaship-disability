@@ -16,7 +16,7 @@ knitr::opts_chunk$set(
   )
 ```
 
-[Measuring Disability in the Census](https://www2.census.gov/programs-surveys/acs/tech_docs/subject_definitions/2020_ACSSubjectDefinitions.pdf)
+[Measuring Disability in the Census](https://www2.census.gov/programs-surveys/acs/tech_docs/subject_definitions/2021_ACSSubjectDefinitions.pdf)
 
 Disability Status Under the conceptual framework of disability described by the Institute of Medicine (IOM) and the International Classification of Functioning, Disability, and Health (ICF), disability is defined as the product of interactions among individuals’ bodies; their physical, emotional, and mental health; and the physical and social environment in which they live, work, or play.  Disability exists where this interaction results in limitations of activities and restrictions to full participation at school, at work, at home, or in the community.  For example, disability may exist where a child has difficulty learning because the school cannot accommodate the child’s deafness. 
 
@@ -26,7 +26,7 @@ Measuring this complex concept of disability with a short set of six questions i
 
 In an attempt to capture a variety of characteristics that encompass the definition of disability, the ACS identifies serious difficulty with four basic areas of functioning – hearing, vision, cognition, and ambulation.  These functional limitations are supplemented by questions about difficulties with selected activities from the Katz Activities of Daily Living (ADL) and Lawton Instrumental Activities of Daily Living (IADL) scales, namely difficulty bathing and dressing, and difficulty performing errands such as shopping.  Overall, the ACS 
 
-```{r }
+```{r index-1 }
 library(tidyverse)
 library(tidycensus)
 library(scales)
@@ -42,7 +42,7 @@ c(
   ) -> appalachian.ohio 
 
 load_variables(
-  2020, 
+  2021, 
   "acs5"
   ) -> myvars
 
@@ -50,17 +50,17 @@ load_variables(
 
 # Disability Characteristics
 
-Ohio ranks 16th in terms of the percent of the total population with a disability (14%). The 2016-2020 data show 14.2% of female Ohioans with a disability versus a slightly smaller 13.7% of male Ohioans. In terms of age-groups, 47.7% of Ohioans ages 75 or older report a disability, followed by 24.5% of Ohioans 65-74 years of age, 14.3% of Ohioans 35-64 years of age, 7.7% of Ohioans 18-34 years of age, 6.6% of Ohioans 5-17 years of age, and 0.7% of Ohioans under 5 years of age. 
+Ohio ranks 18th in terms of the percent of the total population with a disability (13.9%). The 2017-2021 data show 14.1% of female Ohioans with a disability versus a slightly smaller 13.7% of male Ohioans. In terms of age-groups, 47.2% of Ohioans ages 75 or older report a disability, followed by 24.3% of Ohioans 65-74 years of age, 14.1% of Ohioans 35-64 years of age, 8.0% of Ohioans 18-34 years of age, 6.7% of Ohioans 5-17 years of age, and 0.6% of Ohioans under 5 years of age. 
 
 ::: {.panel-tabset}
 
 ## Overall
 
-```{r }
+```{r index-2 }
 get_acs(
   geography = "state",
   table = "B18101",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -113,7 +113,7 @@ tab01_df %>%
 
 tab01 %>% 
   select(1:3) %>%
-  arrange(- `With a Disability`) %>%
+  arrange(-`With a Disability`) %>%
   DT::datatable(
     ., 
     caption = "Percent of State Population with a Disability",
@@ -144,7 +144,7 @@ tab01 %>%
 
 ## By Gender
 
-```{r }
+```{r index-3 }
 tab01_df %>%
   group_by(NAME) %>%
   mutate(
@@ -204,7 +204,7 @@ tab02 %>%
 
 ## By Age-group
 
-```{r }
+```{r index-4 }
 
 tab01_df %>%
   group_by(NAME) %>%
@@ -265,7 +265,7 @@ tab03 %>%
 
 ## By Gender and Age-group
 
-```{r }
+```{r index-5 }
 
 tab01_df %>%
   group_by(NAME) %>%
@@ -328,19 +328,19 @@ DT::datatable(
 :::
 
 ## What about Ohio's counties? 
-Scioto county leads with an estimated 23.2% of its population living with a disability, with Delaware bringing up the rear with 8%. A simple map of disability rates per county shows Appalachia faring worse than the rest of the state, as expected. 
+Pike county leads with an estimated 23.9% of its population living with a disability, with Holmes bringing up the rear with 7.6%. A simple map of disability rates per county shows Appalachia faring worse than the rest of the state, as expected. 
 
 
 ::: {.panel-tabset}
 
 ### Overall
 
-```{r, include=FALSE}
+```{r index-6, include=FALSE}
 get_acs(
   geography = "county",
   state = "OH",
   table = "B18101",
-  year = 2020,
+  year = 2021,
   geometry = TRUE
   ) %>%
   left_join(
@@ -350,7 +350,7 @@ get_acs(
 ```
 
 
-```{r }
+```{r index-7 }
 b18101_county %>%
   mutate(
     sex = case_when(
@@ -407,7 +407,7 @@ tab04 %>%
   sf::st_drop_geometry() %>%
   ungroup() %>%
   select(1,3) %>%
-  arrange(- `With a Disability`) %>%
+  arrange(-`With a Disability`) %>%
   DT::datatable(
     ., 
     caption = "Percent of Ohio's County Population with a Disability",
@@ -434,7 +434,7 @@ tab04 %>%
 
 ### A Map as an Example
 
-```{r, fig.align='center', fig.height=8, fig.width = 8, out.width='100%'}
+```{r index-8, fig.align='center', fig.height=8, fig.width = 8, out.width='100%'}
 
 tab04 %>%
   ggplot() +
@@ -458,7 +458,7 @@ tab04 %>%
   scale_fill_viridis_c(option = "plasma", direction = -1) +
   labs(
     title = "Counties in Southeast Ohio Have Higher Percentages of their  Populations with a Disability",
-    caption = "Data Source: ACS 2016-2020, Table B1801",
+    caption = "Data Source: ACS 2017-2021, Table B1801",
     fill = "% with a Disability"
        )
 
@@ -466,7 +466,7 @@ tab04 %>%
 
 ### By Gender
 
-```{r }
+```{r index-9 }
 
 tab02_df %>%
   sf::st_drop_geometry() %>%
@@ -530,7 +530,7 @@ tab02 %>%
 
 ### By Age-group
 
-```{r }
+```{r index-10 }
 
 tab02_df %>%
   sf::st_drop_geometry() %>%
@@ -592,7 +592,7 @@ tab03 %>%
 
 ### By Gender and Age-group
 
-```{r }
+```{r index-11 }
 
 tab02_df %>%
   sf::st_drop_geometry() %>%
@@ -660,7 +660,7 @@ tab03 %>%
 
 ::: {.panel-tabset}
 
-```{r}
+```{r index-12}
 
 tab02_df %>%
   sf::st_drop_geometry() -> tab03_df
@@ -698,7 +698,7 @@ tab03_df %>%
 
 ### Overall
 
-```{r}
+```{r index-13}
 
 tab03_df %>%
   group_by(appalachia) %>%
@@ -747,7 +747,7 @@ tab0 %>%
 
 ### By Gender
 
-```{r}
+```{r index-14}
 taba %>%
   select(1, 3, 4) %>%
   group_by(appalachia) %>%
@@ -797,7 +797,7 @@ tab03_df %>%
 
 ### By Age-group
 
-```{r}
+```{r index-15}
 tabb %>%
   select(1, 3, 4) %>%
   group_by(appalachia) %>%
@@ -866,7 +866,7 @@ tab03_df_1 %>%
 
 ### By Gender and Age-group
 
-```{r}
+```{r index-16}
 tab03_df_2 %>% 
   DT::datatable(
     ., 
@@ -898,14 +898,14 @@ tab03_df_2 %>%
 
 # Does the prevalence of disability vary by Race/Ethnicity?
 
-Indeed it does, with American Indian and Alaska Native Ohioans faring the worst (25.7% are estimated to have a disability), followed by Black or African-American Ohioans (15.3%). Asian Ohioans are the least likely to have a disability (5.9%). 
+Indeed it does, with American Indian and Alaska Native Ohioans faring the worst (24.0% are estimated to have a disability), followed by Black or African-American Ohioans (15.1%). Asian Ohioans are the least likely to have a disability (5.9%). 
 
-```{r }
+```{r index-17 }
 
 get_acs(
   geography = "state",
   table = "B18101H",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -930,7 +930,7 @@ b18101_state_h %>%
 get_acs(
   geography = "state",
   table = "B18101B",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -955,7 +955,7 @@ b18101_state_b %>%
 get_acs(
   geography = "state",
   table = "B18101C",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -980,7 +980,7 @@ b18101_state_c %>%
 get_acs(
   geography = "state",
   table = "B18101D",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -1005,7 +1005,7 @@ b18101_state_d %>%
 get_acs(
   geography = "state",
   table = "B18101E",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -1030,7 +1030,7 @@ b18101_state_e %>%
 get_acs(
   geography = "state",
   table = "B18101I",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -1054,7 +1054,7 @@ b18101_state_i %>%
 
 ```
 
-```{r }
+```{r index-18 }
 tab01_df_i$race_ethnicity = "Hispanic"
 tab01_df_h$race_ethnicity = "Non-Hispanic White"
 tab01_df_b$race_ethnicity = "Black or African-American Alone"
@@ -1088,7 +1088,7 @@ tab01_ohio %>%
   ungroup() %>%
   filter(disability == "With a Disability") %>%
   select(3, 6) %>%
-  arrange(- prop_disabled) %>%
+  arrange(-prop_disabled) %>%
   mutate(
     prop_disabled = round(prop_disabled * 100, digits = 1)
   ) %>%
@@ -1116,12 +1116,12 @@ tab01_ohio %>%
 
 And for the counties?
 
-```{r }
+```{r index-19 }
 get_acs(
   geography = "county",
   state = "OH",
   table = "B18101H",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -1147,7 +1147,7 @@ get_acs(
   geography = "county",
   state = "OH",
   table = "B18101B",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -1173,7 +1173,7 @@ get_acs(
   geography = "county",
   state = "OH",
   table = "B18101C",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -1199,7 +1199,7 @@ get_acs(
   geography = "county",
   state = "OH",
   table = "B18101D",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -1225,7 +1225,7 @@ get_acs(
   geography = "county",
   state = "OH",
   table = "B18101E",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -1251,7 +1251,7 @@ get_acs(
   geography = "county",
   state = "OH",
   table = "B18101I",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -1275,7 +1275,7 @@ b18101_county_i %>%
 
 ```
 
-```{r }
+```{r index-20 }
 tab01_df_i$race_ethnicity = "Hispanic"
 tab01_df_h$race_ethnicity = "Non-Hispanic White"
 tab01_df_b$race_ethnicity = "Black or African-American Alone"
@@ -1355,12 +1355,12 @@ tab_county_race_02 %>%
 
 ### State Overall
 
-```{r }
+```{r index-21 }
 
 get_acs(
   geography = "state",
   table = "B18102",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -1413,7 +1413,7 @@ tab18102_df %>%
 
 ```
 
-```{r }
+```{r index-22 }
 
 tab_hearing %>%
   ungroup() %>%
@@ -1445,7 +1445,7 @@ tab_hearing %>%
 
 ### State by Gender
 
-```{r}
+```{r index-23}
 
 tab18102_df %>%
   group_by(NAME, sex) %>%
@@ -1501,7 +1501,7 @@ tab_hearing2 %>%
 
 ### State by Age-group
 
-```{r }
+```{r index-24 }
 
 tab18102_df %>%
   group_by(NAME, age) %>%
@@ -1553,7 +1553,7 @@ tab_hearing2 %>%
 
 ### State by Gender and Age-group
 
-```{r }
+```{r index-25 }
 
 tab18102_df %>%
   group_by(NAME, sex, age) %>%
@@ -1615,12 +1615,12 @@ tab_hearing3 %>%
 
 ### County Overall
 
-```{r }
+```{r index-26 }
 get_acs(
   geography = "county",
   state = "Ohio",
   table = "B18102",
-  year = 2020
+  year = 2021
 ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -1673,7 +1673,7 @@ tab18102_df %>%
 
 ```
 
-```{r }
+```{r index-27 }
 
 tab_hearing_c %>%
   mutate(
@@ -1708,7 +1708,7 @@ tab_hearing_c %>%
 
 ### County by Gender
 
-```{r }
+```{r index-28 }
 
 tab18102_df %>%
   group_by(NAME, sex) %>%
@@ -1737,7 +1737,7 @@ tab18102_df %>%
 
 ```
 
-```{r }
+```{r index-29 }
 
 tab_hearing_c2 %>%
   mutate(
@@ -1771,7 +1771,7 @@ tab_hearing_c2 %>%
 
 ### County by Age-group
 
-```{r}
+```{r index-30}
 
 tab18102_df %>%
   group_by(NAME, age) %>%
@@ -1827,7 +1827,7 @@ tab_hearing2 %>%
 
 ### County by Gender and Age-group
 
-```{r }
+```{r index-31 }
 
 tab18102_df %>%
   group_by(NAME, sex, age) %>%
@@ -1856,7 +1856,7 @@ tab18102_df %>%
 
 ```
 
-```{r }
+```{r index-32 }
 
 tab_hearing_c3 %>%
   ungroup() %>%
@@ -1892,7 +1892,7 @@ tab_hearing_c3 %>%
 
 ### Overall
 
-```{r}
+```{r index-33}
 
 tab18102_df %>%
   mutate(
@@ -1946,7 +1946,7 @@ taba %>%
 
 ### By Gender
 
-```{r}
+```{r index-34}
 
 mydf %>%
   group_by(appalachia, sex) %>%
@@ -1996,7 +1996,7 @@ tabb %>%
 
 ### By Age-group
 
-```{r}
+```{r index-35}
 
 mydf %>%
   group_by(appalachia, age) %>%
@@ -2047,7 +2047,7 @@ tabc %>%
 
 ### By Gender and Age-group
 
-```{r}
+```{r index-36}
 
 mydf %>%
   group_by(appalachia, sex, age) %>%
@@ -2104,12 +2104,12 @@ tabd %>%
 
 ### State Overall
 
-```{r }
+```{r index-37 }
 
 get_acs(
   geography = "state",
   table = "B18103",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -2162,7 +2162,7 @@ tab18103_df %>%
 
 ```
 
-```{r }
+```{r index-38 }
 
 tab_vision %>%
   ungroup() %>%
@@ -2195,7 +2195,7 @@ tab_vision %>%
 ### State by Gender
 
 
-```{r}
+```{r index-39}
 
 tab18103_df %>%
   sf::st_drop_geometry() %>%
@@ -2251,7 +2251,7 @@ tab_vision %>%
 ### State by Age
 
 
-```{r}
+```{r index-40}
 
 tab18103_df %>%
   sf::st_drop_geometry() %>%
@@ -2306,7 +2306,7 @@ tab_vision %>%
 
 ### State by Gender and Age-group
 
-```{r }
+```{r index-41 }
 
 tab18103_df %>%
   group_by(NAME, sex, age) %>%
@@ -2365,13 +2365,13 @@ tab_vision3 %>%
 
 ::: {.panel-tabset}
 
-```{r }
+```{r index-42 }
 
 get_acs(
   geography = "county",
   state = "Ohio",
   table = "B18103",
-  year = 2020
+  year = 2021
 ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -2427,7 +2427,7 @@ tab18103_df_c %>%
 
 ### County Overall
 
-```{r}
+```{r index-43}
 
 tab_vison_c %>%
   ungroup() %>%
@@ -2457,7 +2457,7 @@ tab_vison_c %>%
 
 ```
 
-```{r}
+```{r index-44}
 
 tab18103_df_c %>%
   group_by(NAME, sex) %>%
@@ -2490,7 +2490,7 @@ tab18103_df_c %>%
 
 ### County by Gender
 
-```{r}
+```{r index-45}
 
 tab_vison_c2 %>%
   ungroup() %>%
@@ -2522,7 +2522,7 @@ tab_vison_c2 %>%
 
 ### County by Age-group 
 
-```{r}
+```{r index-46}
 
 tab18103_df_c %>%
   group_by(NAME, age) %>%
@@ -2551,7 +2551,7 @@ tab18103_df_c %>%
 
 ```
 
-```{r}
+```{r index-47}
 
 tab_vision_c3 %>%
     ungroup() %>%
@@ -2581,7 +2581,7 @@ tab_vision_c3 %>%
 
 ### County by Gender and Age-group
 
-```{r}
+```{r index-48}
 
 tab18103_df_c %>%
   group_by(NAME, sex, age) %>%
@@ -2613,7 +2613,7 @@ tab18103_df_c %>%
 
 ```
 
-```{r}
+```{r index-49}
 
 tab_vision_c4 %>%
   ungroup() %>%
@@ -2649,7 +2649,7 @@ tab_vision_c4 %>%
 
 ### Overall
 
-```{r}
+```{r index-50}
 
 tab18103_df_c %>%
   mutate(
@@ -2702,7 +2702,7 @@ taba %>%
 
 ### By Gender
 
-```{r}
+```{r index-51}
 
 mydf %>%
   group_by(appalachia, sex) %>%
@@ -2752,7 +2752,7 @@ tabb %>%
 
 ### By Age-group
 
-```{r}
+```{r index-52}
 
 mydf %>%
   group_by(appalachia, age) %>%
@@ -2803,7 +2803,7 @@ tabc %>%
 
 ### By Gender and Age-group
 
-```{r}
+```{r index-53}
 
 mydf %>%
   group_by(appalachia, sex, age) %>%
@@ -2859,12 +2859,12 @@ tabd %>%
 
 ### State Overall
 
-```{r }
+```{r index-54 }
 
 get_acs(
   geography = "state",
   table = "B18104",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -2917,7 +2917,7 @@ taB18104_df %>%
 
 ```
 
-```{r }
+```{r index-55 }
 
 tab_vision %>%
   ungroup() %>%
@@ -2950,7 +2950,7 @@ tab_vision %>%
 ### State by Gender
 
 
-```{r}
+```{r index-56}
 
 taB18104_df %>%
   sf::st_drop_geometry() %>%
@@ -3006,7 +3006,7 @@ tab_vision %>%
 ### State by Age
 
 
-```{r}
+```{r index-57}
 
 taB18104_df %>%
   sf::st_drop_geometry() %>%
@@ -3061,7 +3061,7 @@ tab_vision %>%
 
 ### State by Gender and Age-group
 
-```{r }
+```{r index-58 }
 
 taB18104_df %>%
   group_by(NAME, sex, age) %>%
@@ -3120,13 +3120,13 @@ tab_vision3 %>%
 
 ::: {.panel-tabset}
 
-```{r }
+```{r index-59 }
 
 get_acs(
   geography = "county",
   state = "Ohio",
   table = "B18104",
-  year = 2020
+  year = 2021
 ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -3182,7 +3182,7 @@ taB18104_df_c %>%
 
 ### County Overall
 
-```{r}
+```{r index-60}
 
 tab_vison_c %>%
   ungroup() %>%
@@ -3212,7 +3212,7 @@ tab_vison_c %>%
 
 ```
 
-```{r}
+```{r index-61}
 
 taB18104_df_c %>%
   group_by(NAME, sex) %>%
@@ -3245,7 +3245,7 @@ taB18104_df_c %>%
 
 ### County by Gender
 
-```{r}
+```{r index-62}
 
 tab_vison_c2 %>%
   ungroup() %>%
@@ -3277,7 +3277,7 @@ tab_vison_c2 %>%
 
 ### County by Age-group 
 
-```{r}
+```{r index-63}
 
 taB18104_df_c %>%
   group_by(NAME, age) %>%
@@ -3306,7 +3306,7 @@ taB18104_df_c %>%
 
 ```
 
-```{r}
+```{r index-64}
 
 tab_vision_c3 %>%
     ungroup() %>%
@@ -3336,7 +3336,7 @@ tab_vision_c3 %>%
 
 ### County by Gender and Age-group
 
-```{r}
+```{r index-65}
 
 taB18104_df_c %>%
   group_by(NAME, sex, age) %>%
@@ -3368,7 +3368,7 @@ taB18104_df_c %>%
 
 ```
 
-```{r}
+```{r index-66}
 
 tab_vision_c4 %>%
   ungroup() %>%
@@ -3404,7 +3404,7 @@ tab_vision_c4 %>%
 
 ### Overall
 
-```{r}
+```{r index-67}
 
 taB18104_df_c %>%
   mutate(
@@ -3457,7 +3457,7 @@ taba %>%
 
 ### By Gender
 
-```{r}
+```{r index-68}
 
 mydf %>%
   group_by(appalachia, sex) %>%
@@ -3507,7 +3507,7 @@ tabb %>%
 
 ### By Age-group
 
-```{r}
+```{r index-69}
 
 mydf %>%
   group_by(appalachia, age) %>%
@@ -3558,7 +3558,7 @@ tabc %>%
 
 ### By Gender and Age-group
 
-```{r}
+```{r index-70}
 
 mydf %>%
   group_by(appalachia, sex, age) %>%
@@ -3615,12 +3615,12 @@ tabd %>%
 
 ### State Overall
 
-```{r }
+```{r index-71 }
 
 get_acs(
   geography = "state",
   table = "B18105",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -3672,7 +3672,7 @@ taB18105_df %>%
 
 ```
 
-```{r }
+```{r index-72 }
 
 tab_vision %>%
   ungroup() %>%
@@ -3705,7 +3705,7 @@ tab_vision %>%
 ### State by Gender
 
 
-```{r}
+```{r index-73}
 
 taB18105_df %>%
   sf::st_drop_geometry() %>%
@@ -3761,7 +3761,7 @@ tab_vision %>%
 ### State by Age
 
 
-```{r}
+```{r index-74}
 
 taB18105_df %>%
   sf::st_drop_geometry() %>%
@@ -3816,7 +3816,7 @@ tab_vision %>%
 
 ### State by Gender and Age-group
 
-```{r }
+```{r index-75 }
 
 taB18105_df %>%
   group_by(NAME, sex, age) %>%
@@ -3874,13 +3874,13 @@ tab_vision3 %>%
 
 ::: {.panel-tabset}
 
-```{r }
+```{r index-76 }
 
 get_acs(
   geography = "county",
   state = "Ohio",
   table = "B18105",
-  year = 2020
+  year = 2021
 ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -3936,7 +3936,7 @@ taB18105_df_c %>%
 
 ### County Overall
 
-```{r}
+```{r index-77}
 
 tab_vison_c %>%
   ungroup() %>%
@@ -3966,7 +3966,7 @@ tab_vison_c %>%
 
 ```
 
-```{r}
+```{r index-78}
 
 taB18105_df_c %>%
   group_by(NAME, sex) %>%
@@ -3999,7 +3999,7 @@ taB18105_df_c %>%
 
 ### County by Gender
 
-```{r}
+```{r index-79}
 
 tab_vison_c2 %>%
   ungroup() %>%
@@ -4031,7 +4031,7 @@ tab_vison_c2 %>%
 
 ### County by Age-group 
 
-```{r}
+```{r index-80}
 
 taB18105_df_c %>%
   group_by(NAME, age) %>%
@@ -4060,7 +4060,7 @@ taB18105_df_c %>%
 
 ```
 
-```{r}
+```{r index-81}
 
 tab_vision_c3 %>%
     ungroup() %>%
@@ -4090,7 +4090,7 @@ tab_vision_c3 %>%
 
 ### County by Gender and Age-group
 
-```{r}
+```{r index-82}
 
 taB18105_df_c %>%
   group_by(NAME, sex, age) %>%
@@ -4122,7 +4122,7 @@ taB18105_df_c %>%
 
 ```
 
-```{r}
+```{r index-83}
 
 tab_vision_c4 %>%
   ungroup() %>%
@@ -4158,7 +4158,7 @@ tab_vision_c4 %>%
 
 ### Overall
 
-```{r}
+```{r index-84}
 
 taB18105_df_c %>%
   mutate(
@@ -4211,7 +4211,7 @@ taba %>%
 
 ### By Gender
 
-```{r}
+```{r index-85}
 
 mydf %>%
   group_by(appalachia, sex) %>%
@@ -4261,7 +4261,7 @@ tabb %>%
 
 ### By Age-group
 
-```{r}
+```{r index-86}
 
 mydf %>%
   group_by(appalachia, age) %>%
@@ -4312,7 +4312,7 @@ tabc %>%
 
 ### By Gender and Age-group
 
-```{r}
+```{r index-87}
 
 mydf %>%
   group_by(appalachia, sex, age) %>%
@@ -4369,12 +4369,12 @@ tabd %>%
 
 ### State Overall
 
-```{r }
+```{r index-88 }
 
 get_acs(
   geography = "state",
   table = "B18106",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -4426,7 +4426,7 @@ taB18106_df %>%
 
 ```
 
-```{r }
+```{r index-89 }
 
 tab_vision %>%
   ungroup() %>%
@@ -4459,7 +4459,7 @@ tab_vision %>%
 ### State by Gender
 
 
-```{r}
+```{r index-90}
 
 taB18106_df %>%
   sf::st_drop_geometry() %>%
@@ -4515,7 +4515,7 @@ tab_vision %>%
 ### State by Age
 
 
-```{r}
+```{r index-91}
 
 taB18106_df %>%
   sf::st_drop_geometry() %>%
@@ -4570,7 +4570,7 @@ tab_vision %>%
 
 ### State by Gender and Age-group
 
-```{r }
+```{r index-92 }
 
 taB18106_df %>%
   group_by(NAME, sex, age) %>%
@@ -4628,13 +4628,13 @@ tab_vision3 %>%
 
 ::: {.panel-tabset}
 
-```{r }
+```{r index-93 }
 
 get_acs(
   geography = "county",
   state = "Ohio",
   table = "B18106",
-  year = 2020
+  year = 2021
 ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -4690,7 +4690,7 @@ taB18106_df_c %>%
 
 ### County Overall
 
-```{r}
+```{r index-94}
 
 tab_vison_c %>%
   ungroup() %>%
@@ -4720,7 +4720,7 @@ tab_vison_c %>%
 
 ```
 
-```{r}
+```{r index-95}
 
 taB18106_df_c %>%
   group_by(NAME, sex) %>%
@@ -4753,7 +4753,7 @@ taB18106_df_c %>%
 
 ### County by Gender
 
-```{r}
+```{r index-96}
 
 tab_vison_c2 %>%
   ungroup() %>%
@@ -4785,7 +4785,7 @@ tab_vison_c2 %>%
 
 ### County by Age-group 
 
-```{r}
+```{r index-97}
 
 taB18106_df_c %>%
   group_by(NAME, age) %>%
@@ -4814,7 +4814,7 @@ taB18106_df_c %>%
 
 ```
 
-```{r}
+```{r index-98}
 
 tab_vision_c3 %>%
     ungroup() %>%
@@ -4844,7 +4844,7 @@ tab_vision_c3 %>%
 
 ### County by Gender and Age-group
 
-```{r}
+```{r index-99}
 
 taB18106_df_c %>%
   group_by(NAME, sex, age) %>%
@@ -4876,7 +4876,7 @@ taB18106_df_c %>%
 
 ```
 
-```{r}
+```{r index-100}
 
 tab_vision_c4 %>%
   ungroup() %>%
@@ -4912,7 +4912,7 @@ tab_vision_c4 %>%
 
 ### Overall
 
-```{r}
+```{r index-101}
 
 taB18106_df_c %>%
   mutate(
@@ -4965,7 +4965,7 @@ taba %>%
 
 ### By Gender
 
-```{r}
+```{r index-102}
 
 mydf %>%
   group_by(appalachia, sex) %>%
@@ -5015,7 +5015,7 @@ tabb %>%
 
 ### By Age-group
 
-```{r}
+```{r index-103}
 
 mydf %>%
   group_by(appalachia, age) %>%
@@ -5066,7 +5066,7 @@ tabc %>%
 
 ### By Gender and Age-group
 
-```{r}
+```{r index-104}
 
 mydf %>%
   group_by(appalachia, sex, age) %>%
@@ -5122,12 +5122,12 @@ tabd %>%
 
 ### State Overall
 
-```{r }
+```{r index-105 }
 
 get_acs(
   geography = "state",
   table = "B18107",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -5179,7 +5179,7 @@ taB18107_df %>%
 
 ```
 
-```{r }
+```{r index-106 }
 
 tab_vision %>%
   ungroup() %>%
@@ -5212,7 +5212,7 @@ tab_vision %>%
 ### State by Gender
 
 
-```{r}
+```{r index-107}
 
 taB18107_df %>%
   sf::st_drop_geometry() %>%
@@ -5268,7 +5268,7 @@ tab_vision %>%
 ### State by Age
 
 
-```{r}
+```{r index-108}
 
 taB18107_df %>%
   sf::st_drop_geometry() %>%
@@ -5323,7 +5323,7 @@ tab_vision %>%
 
 ### State by Gender and Age-group
 
-```{r }
+```{r index-109 }
 
 taB18107_df %>%
   group_by(NAME, sex, age) %>%
@@ -5381,13 +5381,13 @@ tab_vision3 %>%
 
 ::: {.panel-tabset}
 
-```{r }
+```{r index-110 }
 
 get_acs(
   geography = "county",
   state = "Ohio",
   table = "B18107",
-  year = 2020
+  year = 2021
 ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -5443,7 +5443,7 @@ taB18107_df_c %>%
 
 ### County Overall
 
-```{r}
+```{r index-111}
 
 tab_vison_c %>%
   ungroup() %>%
@@ -5473,7 +5473,7 @@ tab_vison_c %>%
 
 ```
 
-```{r}
+```{r index-112}
 
 taB18107_df_c %>%
   group_by(NAME, sex) %>%
@@ -5506,7 +5506,7 @@ taB18107_df_c %>%
 
 ### County by Gender
 
-```{r}
+```{r index-113}
 
 tab_vison_c2 %>%
   ungroup() %>%
@@ -5538,7 +5538,7 @@ tab_vison_c2 %>%
 
 ### County by Age-group 
 
-```{r}
+```{r index-114}
 
 taB18107_df_c %>%
   group_by(NAME, age) %>%
@@ -5567,7 +5567,7 @@ taB18107_df_c %>%
 
 ```
 
-```{r}
+```{r index-115}
 
 tab_vision_c3 %>%
     ungroup() %>%
@@ -5597,7 +5597,7 @@ tab_vision_c3 %>%
 
 ### County by Gender and Age-group
 
-```{r}
+```{r index-116}
 
 taB18107_df_c %>%
   group_by(NAME, sex, age) %>%
@@ -5629,7 +5629,7 @@ taB18107_df_c %>%
 
 ```
 
-```{r}
+```{r index-117}
 
 tab_vision_c4 %>%
   ungroup() %>%
@@ -5665,7 +5665,7 @@ tab_vision_c4 %>%
 
 ### Overall
 
-```{r}
+```{r index-118}
 
 taB18107_df_c %>%
   mutate(
@@ -5718,7 +5718,7 @@ taba %>%
 
 ### By Gender
 
-```{r}
+```{r index-119}
 
 mydf %>%
   group_by(appalachia, sex) %>%
@@ -5768,7 +5768,7 @@ tabb %>%
 
 ### By Age-group
 
-```{r}
+```{r index-120}
 
 mydf %>%
   group_by(appalachia, age) %>%
@@ -5819,7 +5819,7 @@ tabc %>%
 
 ### By Gender and Age-group
 
-```{r}
+```{r index-121}
 
 mydf %>%
   group_by(appalachia, sex, age) %>%
@@ -5871,13 +5871,13 @@ tabd %>%
 
 # Health Insurance Status at the State-level
 
-When it comes to insurance status of those with a disability, Ohio does well in comparison to other states. Specifically, 4.1% of Ohioans with a disability lack health insurance, versus Oklahoma with 11.7% (the worst) and Massachusetts with 1.6% (the best). However, these aggregate estimates mask significant variation across age-groups: 3.1% of those under 19 years of age and with a disability lack health insurance versus 7.1% of 19-64 year-olds with a disability. 
+When it comes to insurance status of those with a disability, Ohio does well in comparison to other states. Specifically, 4.2% of Ohioans with a disability lack health insurance, versus Oklahoma with 11.4% (the worst) and Massachusetts with 1.7% (the best). However, these aggregate estimates mask significant variation across age-groups: 3.5% of Ohioans under 19 years of age and with a disability lack health insurance versus 7.3% of 19-64 year-old Ohioans with a disability. 
 
-```{r }
+```{r index-122 }
 get_acs(
   geography = "state",
   table = "B18135",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -5953,7 +5953,7 @@ tab18135_df %>%
 
 ### State Overall
 
-```{r}
+```{r index-123}
 
 tab18135_01 %>%
   ungroup() %>%
@@ -5985,7 +5985,7 @@ tab18135_01 %>%
 
 ### State by Age-group
 
-```{r}
+```{r index-124}
 
 tab18135_02 %>%
   ungroup() %>%
@@ -6028,13 +6028,13 @@ tab18135_02 %>%
 
 ### County Overall
 
-```{r}
+```{r index-125}
 
 get_acs(
   geography = "county",
   state = "OH",
   table = "B18135",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -6108,7 +6108,7 @@ tab18135_df %>%
 
 ```
 
-```{r}
+```{r index-126}
 
 tab18135_01 %>%
   ungroup() %>%
@@ -6141,7 +6141,7 @@ tab18135_01 %>%
 
 ### County by Age-group
 
-```{r}
+```{r index-127}
 
 tab18135_02 %>%
   ungroup() %>%
@@ -6182,7 +6182,7 @@ tab18135_02 %>%
 
 ### Overall
 
-```{r}
+```{r index-128}
 
 tab18135_df %>%
   mutate(
@@ -6248,7 +6248,7 @@ tab002 %>%
 
 ### By Age-group
 
-```{r}
+```{r index-129}
 tab18135_df %>%
   mutate(
     appalachia = case_when(
@@ -6316,13 +6316,13 @@ tab004 %>%
 
 # Median Earnings
 
-Median earnings (in 2020 inflation-adjusted dollars) of the U.S. civilian non-institutionalized population ages 16 and over with a disability during the previous 12 months from 2016-2020 are tabulated below, first for states and then for counties. 
+Median earnings (in 2021 inflation-adjusted dollars) of the U.S. civilian non-institutionalized population ages 16 and over with a disability during the previous 12 months from 2017-2021 are tabulated below, first for states and then for counties. 
 
-```{r }
+```{r index-130 }
 get_acs(
   geography = "state",
   table = "B18140",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -6385,7 +6385,7 @@ tab18140 %>%
 
 ```
 
-```{r}
+```{r index-131}
 
 tab18140_01 %>%
     DT::datatable(
@@ -6413,12 +6413,12 @@ tab18140_01 %>%
 
 And then the same earnings but for the counties. 
 
-```{r }
+```{r index-132 }
 get_acs(
   geography = "county",
   state = "OH",
   table = "B18140",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -6481,7 +6481,7 @@ tab18140 %>%
 
 ```
 
-```{r}
+```{r index-133}
 
 tab18140_01 %>%
   mutate(NAME = stringr::str_remove_all(NAME, " County, Ohio")) %>%
@@ -6510,13 +6510,13 @@ tab18140_01 %>%
 
 # Receipt of Food Stamps/SNAP 
 
-Of the 4,717,226 households in Ohio, some 12.6% (593,108 households) receive Food Stamps/SNAP, and 51.1% of the households that receive Food Stamps/SNAP have one or more persons with a disability. As a comparison, consider that only 23.6% of households that do not receive Food Stamps/SNAP have one or more persons with a disability.  
+Of the 4,754,161 households in Ohio, some 12.4% (587,542 households) receive Food Stamps/SNAP, and 50.8% of the households that receive Food Stamps/SNAP have one or more persons with a disability. As a comparison, consider that only 23.5% of households that do not receive Food Stamps/SNAP have one or more persons with a disability.  
 
-```{r }
+```{r index-134 }
 get_acs(
   geography = "state",
   table = "B22010",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -6559,7 +6559,7 @@ b22010_df %>%
 
 ```
 
-```{r}
+```{r index-135}
 
 fs_snap %>%
   ungroup() %>%
@@ -6596,12 +6596,12 @@ fs_snap %>%
 
 And then for the counties. 
 
-```{r }
+```{r index-136 }
 get_acs(
   geography = "county",
   state = "OH",
   table = "B22010",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -6663,7 +6663,7 @@ b22010_df  %>%
 
 ```
 
-```{r}
+```{r index-137}
 
 fs_snap %>%
   ungroup() %>%
@@ -6700,7 +6700,7 @@ fs_snap %>%
 
 What about Appalachia versus the Rest of Ohio?
 
-```{r}
+```{r index-138}
 
 b22010_df  %>%
   ungroup() %>%
@@ -6722,7 +6722,7 @@ b22010_df  %>%
 
 ```
 
-```{r}
+```{r index-139}
 
 fs_snap %>%
   filter(
@@ -6764,13 +6764,13 @@ fs_snap %>%
 
 # Poverty Status of Disabled Ohioans
 
-Some 27.4% of Ohioans 20-64 years of age and living in poverty have a disability, versus 9.8% of similarly aged Ohioans with incomes at or above the poverty line. 
+Some 28.7% of Ohioans 20-64 years of age and living in poverty have a disability, versus 10.3% of similarly aged Ohioans with incomes at or above the poverty line. 
 
-```{r }
+```{r index-140 }
 get_acs(
   geography = "state",
   table = "B23024",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -6851,12 +6851,12 @@ pov00 %>%
 
 And next for the counties. 
 
-```{r }
+```{r index-141 }
 get_acs(
   geography = "county",
   state = "OH",
   table = "B23024",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -6946,7 +6946,7 @@ pov00 %>%
 
 What about Appalachia?
 
-```{r}
+```{r index-142}
 
 b23024_df %>%
   ungroup() %>%
@@ -7016,11 +7016,11 @@ tab006 %>%
 
 # Age and Number of Disabilities
 
-```{r}
+```{r index-143}
 get_acs(
   geography = "state",
   table = "C18108",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -7089,12 +7089,12 @@ c18108_df %>%
 
 And next for the counties. 
 
-```{r}
+```{r index-144}
 get_acs(
   geography = "county",
   state = "OH",
   table = "C18108",
-  year = 2020
+  year = 2021
   ) %>%
   left_join(
     myvars[, c(1:3)],
@@ -7163,7 +7163,7 @@ c18108_df %>%
 
 And, for the last time, what about Appalachia?
 
-```{r}
+```{r index-145}
 
 c18108_df %>%
   mutate(
